@@ -42,15 +42,18 @@ mixedcirc_detect(
 \item{...}{additionl arguments to the regression function}
 }
 \value{
-A nested list. Each element of the first list contains a data frame (result) and a fit class. The data frame includes the estimated mesor, amplitude and phase for each of the groups.
-The data frame also includes the p-values for each estimates as well as differences between the groups.
-The fit object is the actual model fitted.
+A class of mixedcirc_fit_list.
 }
 \description{
 This functions performs differential circadian rhythm analysis using mixed models.
 }
 \details{
-
+For each variable we use the following mode:
+In this part we do rhythmicity analysis on individual variables using the following model:
+measure ~0 + group + group:in + group:out
+Where `in` is defined as cos(2 \* pi \* time / period) and `out` as sin(2 \* pi \* exp_design$time / period).
+The global inference is tested on group:in == 0 or group:out == 0
+The between group difference is tested as differences between in and out across different groups. No p-value adjustment is performed!
 }
 \examples{
 data("circa_data")
