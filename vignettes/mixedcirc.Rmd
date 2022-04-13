@@ -1,0 +1,113 @@
+---
+title: "Perform differential circadian rhythm analysis using mixedcirc"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{mixedcirc}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+
+
+# Rhythmicity analysis
+
+In this part we do rhythmicity analysis on individual variables using the following model:
+
+$$ 
+expression= group_{1}+group_{2}+group_{1} \times cos(\frac{2\times \pi \times time}{24}) + group_{2} \times cos(\frac{2\times \pi \times time}{24}) +group_{1} \times sin(\frac{2\times \pi \times time}{24}) + group_{2} \times sin(\frac{2\times \pi \times time}{24}) + random(subject)
+$$
+
+The evaluation of the model for global rhythmicity is performed using different statistics on combined null hypothesis:
+
+$$group_{1} \times cos(\frac{2\times \pi \times time}{24}) = 0 \\
+group_{2} \times cos(\frac{2\times \pi \times time}{24}) = 0 \\
+group_{1} \times sin(\frac{2\times \pi \times time}{24}) = 0 \\
+group_{2} \times sin(\frac{2\times \pi \times time}{24}) =0
+$$
+
+
+The evaluation of differential rhythmicity is performed using different statistics on combined null hypothesis:
+
+$$group_{1} \times cos(\frac{2\times \pi \times time}{24}) - group_{2} \times cos(\frac{2\times \pi \times time}{24}) = 0 \\
+group_{1} \times sin(\frac{2\times \pi \times time}{24}) - group_{2} \times sin(\frac{2\times \pi \times time}{24}) = 0 \\
+$$
+
+
+The amplitude is transformed using:
+
+
+$$
+amplitude_{\text(group_{1})}=\sqrt{(group_{1} \times cos(\frac{2\times \pi \times time}{24}))^2 + (group_{1} \times sin(\frac{2\times \pi \times time}{24}))^2 }
+$$
+
+The phase is calculate as:
+
+          
+$$
+phase_{\text{group_{1}}}=\arctan{\frac{group_{1} \times sin(\frac{2\times \pi \times time}{24})}{group_{1} \times cos(\frac{2\times \pi \times time}{24})}}
+$$
+Phase is further corrected as 
+
+
+$$
+\DeclareMathOperator{\sign}{sign}
+phase_{\text{groupA}}=\left\{
+  \begin{array}{@{}ll@{}}
+     -1 \times phase_{\text{group 1}}, & \text{if}\ (sb=1 \ \text{or} \ sb=0) \ \text{and} \ sg=1 \\
+    phase_{\text{group 1}}-\pi, & \text{if}\ sb=-1 \ \text{and} \ (sg=0 \ \text{or} \ sg=1) \\
+    -phase_{\text{group 1}}-\pi, & \text{if}\ (sb=-1 \ \text{or} \ sb=0) \ \text{and} \ sg=-1\\
+    phase_{\text{group 1}}-2\times \pi, & \text{if}\ sb=1 \ \text{and} \ (sg=-1 \ \text{or} \ sg=-1) 
+  \end{array}\right.
+$$
+where $sb$ is defined as sign of $sb=cos(\frac{2\times \pi \times time}{24})$ and $sg$ as $sg=sin(\frac{2\times \pi \times time}{24})$. The sign is defined as:
+
+
+$$
+x \longmapsto sign{x}=\left\{
+  \begin{array}{@{}ll@{}}
+    1, & \text{if}\ x\gt0 \\
+    0, & \text{if}\ x= 0 \\
+    -1, & \text{if}\ x\lt0 \\
+  \end{array}\right.\\
+$$
+To avoid the negative phase, we then take the absolute value of the phase so $phase_{\text{group A}}=|phase_{\text{group A}}|$
+
+# How to run the package
+
+The main function of the package is `mixedcirc_detect`. It accepts a data frame of $N\times P$ and performs required analysis. 
+
+For example, let's our simulated data:
+
+```{r setup}
+data("circa_data")
+str(circa_data)
+```
+
+This dataset contains a data matrix of `r nrow(circa_data$data_matrix)` samples and `r nrow(circa_data$data_matrix)` variables. It also includes time, group and id for each of the samples. 
+
+We can now do differntial rhythmicity analysis using
+
+```{r}
+results<-mixedcirc_detect(data_input = circa_data$data_matrix,time = circa_data$time,
+                          group = circa_data$group,id = circa_data$id,period = 24,
+                          verbose = FALSE)
+```
+
+We can see that we have `r length(results)` variables. The result of each, can be printed
+
+```{r}
+print(results[1])
+```
+We can also plot individual variable:
+
+```{r}
+plot(results[1])
+```
+

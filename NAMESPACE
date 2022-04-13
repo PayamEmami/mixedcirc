@@ -2,8 +2,11 @@
 
 export(mixedcirc_detect)
 import(doFuture)
+import(foreach)
 import(future)
 import(future.apply)
+import(ggplot2)
+import(ggsci)
 import(limma)
 import(lme4)
 import(lmerTest)

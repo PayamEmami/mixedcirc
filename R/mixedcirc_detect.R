@@ -83,6 +83,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
   }else{
     warning("No id information was provided! Switching to normal linear regression!")
     lm_method <- "lm"
+    id<-"dummy"
   }
 
   if(!is.numeric(period))
@@ -103,7 +104,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
   if(multiple_groups==TRUE)
   {
     if(verbose)cat("Performing multigroup inference ...\n")
-    res<-foreach::foreach(i=1:ncol(eset))%do%{#ncol(eset)
+    res<-foreach(i=1:ncol(eset))%do%{#ncol(eset)
 
       if(verbose)cat("Processing variable",i,"...\n")
       group_id <- base::levels(exp_design$group)
@@ -151,12 +152,11 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
       g <- multcomp::glht(model_ln, linfct = conts)
 
-
       f_test_results<-NULL
       if(f_test=="multcomp_chi")
       {
         f_test_results<-multcomp:::summary.glht(g, test = Chisqtest())
-      }else if(f_test == "multcomp_chi")
+      }else if(f_test == "multcomp_f")
       {
         f_test_results<-multcomp:::summary.glht(g, test = Ftest())
       }else if(f_test%in%c("Satterthwaite", "Kenward-Roger"))
@@ -211,10 +211,10 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       g <- multcomp::glht(model_ln_B, linfct = conts_g)
 
       f_test_results<-NULL
-      if(f_test=="chi")
+      if(f_test=="multcomp_chi")
       {
         f_test_results<-multcomp:::summary.glht(g, test = Chisqtest())
-      }else if(f_test == "f")
+      }else if(f_test == "multcomp_f")
       {
         f_test_results<-multcomp:::summary.glht(g, test = Ftest())
       }else if(f_test%in%c("Satterthwaite", "Kenward-Roger"))
@@ -400,11 +400,15 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       if(abs_phase){dt_out<-abs(dt_out)}
       colnames(dt_out)<-gsub(pattern = "_A",replacement = paste("_",group_id[1],sep = ""),x = colnames(dt_out),fixed = T)
       colnames(dt_out)<-gsub(pattern = "_B",replacement = paste("_",group_id[2],sep = ""),x = colnames(dt_out),fixed = T)
-      list(results=dt_out,fit=model_ln)
       if(verbose)cat("Variable",i,"finished\n")
+      #list(results=dt_out,fit=model_ln,exp_design=exp_design)
+      new("mixedcirc_fit",results = dt_out,fit=model_ln,exp_design=exp_design)
+
     }
     future:::ClusterRegistry("stop")
     return((res))
+
+
   }else{
     if(verbose)cat("Performing single group inference","...\n")
     res<-foreach::foreach(i=1:ncol(eset))%do%{#ncol(eset)
@@ -446,10 +450,10 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       g <- multcomp::glht(model_ln, linfct = conts)
 
       f_test_results<-NULL
-      if(f_test=="chi")
+      if(f_test=="multcomp_chi")
       {
         f_test_results<-multcomp:::summary.glht(g, test = Chisqtest())
-      }else if(f_test == "f")
+      }else if(f_test == "multcomp_f")
       {
         f_test_results<-multcomp:::summary.glht(g, test = Ftest())
       }else if(f_test%in%c("Satterthwaite", "Kenward-Roger"))
@@ -524,9 +528,10 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       dt_out<-data.frame(amps_A=amps_A,phases_A=phases_A,pglobal_p_value=f_p_value)
       if(abs_phase){dt_out<-abs(dt_out)}
 
-
-      list(results=dt_out,fit=model_ln)
       if(verbose)cat("Variable ",i," finished...\n")
+      #list(results=dt_out,fit=model_ln,exp_design=exp_design)
+      new("mixedcirc_fit",results = dt_out,fit=model_ln,exp_design=exp_design)
+
     }
     future:::ClusterRegistry("stop")
     return(res)

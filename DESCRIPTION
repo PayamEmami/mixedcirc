@@ -20,4 +20,6 @@ Depends:
     lme4,
     lmerTest,
     limma,
+    ggplot2,
+    ggsci,
     R (>= 2.10)

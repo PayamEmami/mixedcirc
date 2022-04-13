@@ -38,6 +38,8 @@ mixedcirc_detect(
 \item{obs_weights}{Regression weights. Default: NULL. See details}
 
 \item{verbose}{Show information about different stages of the processes. Default FALSE}
+
+\item{...}{additionl arguments to the regression function}
 }
 \value{
 A nested list. Each element of the first list contains a data frame (result) and a fit class. The data frame includes the estimated mesor, amplitude and phase for each of the groups.
