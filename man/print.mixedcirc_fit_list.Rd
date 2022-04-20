@@ -4,7 +4,7 @@
 \alias{print.mixedcirc_fit_list}
 \title{Prints circadian rhythm}
 \usage{
-\method{print}{mixedcirc_fit_list}(object)
+\method{print}{mixedcirc_fit_list}(x, ...)
 }
 \description{
 A simple function for printing the mixedcirc_fit object

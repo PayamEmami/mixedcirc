@@ -19,7 +19,7 @@ mixedcirc_detect(
 )
 }
 \arguments{
-\item{data_input}{A numerical matrix or data.frame (N*P) where in the rows are samples (N) and the columns are variables (P)}
+\item{data_input}{A numerical matrix or data.frame (N*P) or DGEList where in the rows are samples (N) and the columns are variables (P). If DGEList is provided, regression weights will be estimated!}
 
 \item{time}{A vector of length N, showing circadian time of each sample}
 
@@ -54,6 +54,8 @@ measure ~0 + group + group:in + group:out
 Where `in` is defined as cos(2 \* pi \* time / period) and `out` as sin(2 \* pi \* exp_design$time / period).
 The global inference is tested on group:in == 0 or group:out == 0
 The between group difference is tested as differences between in and out across different groups. No p-value adjustment is performed!
+
+`obs_weights` is a matrix of size N*P where each colum shows the weights for all the observations for that particular variable.
 }
 \examples{
 data("circa_data")

@@ -35,12 +35,15 @@
 #' @import foreach
 #' @import ggplot2
 #' @import ggsci
-
-plot.mixedcirc_fit<- function(x,y,period=24,
+#' @import ggpubr
+#' @importFrom graphics plot
+#' @export
+mixedcirc_fit_plot<- function(x,period=24,
                               min_time=NULL,max_time=NULL,plot_title="variable",
                               plot_points=TRUE,plot_smooth=FALSE,plot_trend=TRUE,xlab="time",ylab="Expression") {
   object<-x
   fit<-object@fit
+  exp_design<-object@exp_design
   all_combs<-expand.grid(group=unique(object@exp_design[,"group"]))
   to_be_predited<-c()
   if(is.null(min_time))
@@ -90,3 +93,4 @@ plot.mixedcirc_fit<- function(x,y,period=24,
     plot_tmp<-plot_tmp+theme(legend.position="none")
   plot_tmp
 }
+

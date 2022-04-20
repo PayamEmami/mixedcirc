@@ -2,7 +2,7 @@
 #'
 #' This functions performs differential circadian rhythm analysis using mixed models.
 #'
-#' @param data_input A numerical matrix or data.frame (N*P) where in the rows are samples (N) and the columns are variables (P)
+#' @param data_input A numerical matrix or data.frame (N*P) or DGEList where in the rows are samples (N) and the columns are variables (P). If DGEList is provided, regression weights will be estimated!
 #' @param time A vector of length N, showing circadian time of each sample
 #' @param group A character vector of length N. If performing differential circadian rhythm analysis, group is a factor, showing grouping of the samples. Analysis of two groups is supported at this stage! See details!
 #' @param id A vector of length N showing identity of each *unique* sample. See details
@@ -31,6 +31,8 @@
 #' The global inference is tested on group:in == 0 or group:out == 0
 #' The between group difference is tested as differences between in and out across different groups. No p-value adjustment is performed!
 #'
+#' `obs_weights` is a matrix of size N*P where each colum shows the weights for all the observations for that particular variable.
+#'
 #' @import stats
 #' @import multcomp
 #' @import doFuture
@@ -41,7 +43,7 @@
 #' @import limma
 #' @import lmerTest
 #' @import foreach
-#'
+#' @import variancePartition
 
 
 
@@ -56,19 +58,36 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
   # checking inputs
   if(is.null(data_input))
     stop("data_input must be a data frame or matrix")
-  if(!is.matrix(data_input) | !is.matrix(data_input))
+
+  if((!is.matrix(data_input) | !is.matrix(data_input)) & !is(data_input,"DGEList"))
     stop("data_input must be a data frame or matrix")
 
   if(is.null(time))
     stop("time must be a vector")
 
-  if(length(time)!=nrow(data_input))
-    stop("The length of *time* is not equal to the number of rows of *data_input*")
+  if(!is(data_input,"DGEList"))
+  {
+    if(length(time)!=nrow(data_input))
+      stop("The length of *time* is not equal to the number of rows of *data_input*")
+  }else{
+    if(length(time)!=ncol(data_input))
+      stop("The length of *time* is not equal to the number of rows of *data_input*")
+  }
+
 
   if(!is.null(group))
   {
-    if(length(group)!=nrow(data_input))
-      stop("The length of *group* is not equal to the number of rows of *data_input*")
+
+    if(!is(data_input,"DGEList"))
+    {
+      if(length(group)!=nrow(data_input))
+        stop("The length of *group* is not equal to the number of rows of *data_input*")
+    }else{
+      if(length(group)!=ncol(data_input))
+        stop("The length of *group* is not equal to the number of rows of *data_input*")
+    }
+
+
 
     if(length(unique(group))>2)
       stop("We are only supporting two groups at this stage!")
@@ -82,8 +101,16 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
   if(!is.null(id))
   {
-    if(length(id)!=nrow(data_input))
-      stop("The length of *id* is not equal to the number of rows of *data_input*")
+    if(!is(data_input,"DGEList"))
+    {
+      if(length(id)!=nrow(data_input))
+        stop("The length of *id* is not equal to the number of rows of *data_input*")
+    }else{
+      if(length(id)!=ncol(data_input))
+        stop("The length of *id* is not equal to the number of rows of *data_input*")
+    }
+
+
   }else{
     warning("No id information was provided! Switching to normal linear regression!")
     lm_method <- "lm"
@@ -96,55 +123,81 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
   lm_method <- match.arg(lm_method,c("lm","lme","nlme"))
   f_test <- match.arg(f_test,c("multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger"))
 
+  if(!is(data_input,"DGEList"))
   eset <- data_input[,,drop=F]
+  else
+    eset <- NA
 
   if(verbose)cat("Building experiment ...\n")
   exp_design<-cbind.data.frame(time=as.numeric(time),group=as.factor(group),rep=as.character(id))
 
   if(!is.factor(exp_design$group))stop("Group must be a factor!")
 
+
+  if(!is.null(obs_weights) & !is(data_input,"DGEList"))
+  {
+    if(!all(dim(obs_weights)==dim(data_input)))
+      stop("obs_weights must be the same size as data_input!")
+  }
+
   back_transform_method <- "card"
-  obs_weights<-NULL
   if(multiple_groups==TRUE)
   {
     if(verbose)cat("Performing multigroup inference ...\n")
+
+    group_id <- base::levels(exp_design$group)
+    if(verbose)cat("Creating design matrix for ...\n")
+    exp_design <- base::cbind(exp_design,
+                              inphase = cos(2 * pi * exp_design$time / period),
+                              outphase = sin(2 * pi * exp_design$time / period))
+
+    if ("batch" %in% colnames(exp_design)) {
+
+      design <- stats::model.matrix(~0 + group + group:inphase + group:outphase + batch,
+                                    data = exp_design)
+
+      design_s <- stats::model.matrix(~0 +  inphase + outphase,
+                                      data = exp_design)
+
+    } else {
+
+      design <- stats::model.matrix(~0 + group + group:inphase + group:outphase,
+                                    data = exp_design)
+      design_s <- stats::model.matrix(~0 +  inphase + outphase,
+                                      data = exp_design)
+    }
+
+    design_t<-design
+
+    colnames(design) <- gsub("group", "", colnames(design))
+    colnames(design) <- gsub(":", "_", colnames(design))
+
+    if(is(data_input,"DGEList")){
+      if(verbose)cat("Estimating weights for the input variables ...\n")
+
+      if(lm_method=="lm")
+      {
+        if(verbose)cat("lm_method is lm, voom will be used ...\n")
+        voom_res<-limma::voom(data_input, design, plot=FALSE)
+      }else{
+        formula<-~ 0 + group + group:inphase + group:outphase+(1 | rep)
+        voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design)
+      }
+      obs_weights <-t(voom_res$weights)
+      eset<-t(voom_res$E)
+    }
+
     res<-foreach(i=1:ncol(eset))%do%{#ncol(eset)
 
       if(verbose)cat("Processing variable",i,"...\n")
-      group_id <- base::levels(exp_design$group)
-      if(verbose)cat("Creating design matrix for variable",i,"...\n")
-      exp_design <- base::cbind(exp_design,
-                                inphase = cos(2 * pi * exp_design$time / period),
-                                outphase = sin(2 * pi * exp_design$time / period))
-
-      if ("batch" %in% colnames(exp_design)) {
-
-        design <- stats::model.matrix(~0 + group + group:inphase + group:outphase + batch,
-                                      data = exp_design)
-
-        design_s <- stats::model.matrix(~0 +  inphase + outphase,
-                                        data = exp_design)
-
-      } else {
-
-        design <- stats::model.matrix(~0 + group + group:inphase + group:outphase,
-                                      data = exp_design)
-        design_s <- stats::model.matrix(~0 +  inphase + outphase,
-                                        data = exp_design)
-      }
-
-      design_t<-design
-
-      colnames(design) <- gsub("group", "", colnames(design))
-      colnames(design) <- gsub(":", "_", colnames(design))
 
       data_grouped<-cbind(measure=as.numeric(eset[,i]),exp_design)
 
       if(verbose)cat("Fitting the model for variable",i,"...\n")
       model_ln<-switch(lm_method,
-                       lm = lm(measure ~0 + group + group:inphase + group:outphase ,data=data_grouped,weights = obs_weights,...),
-                       lme = lme4::lmer(measure~ 0 + group + group:inphase + group:outphase+(1 | rep) ,data=data_grouped,weights = obs_weights,...),
-                       nlme = nlme::lme(measure~ 0 + group + group:inphase + group:outphase,random=~1 | rep,data=data_grouped,weights = obs_weights,...))
+                       lm = lm(measure ~0 + group + group:inphase + group:outphase ,data=data_grouped,weights = obs_weights[,i],...),
+                       lme = lme4::lmer(measure~ 0 + group + group:inphase + group:outphase+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...),
+                       nlme = nlme::lme(measure~ 0 + group + group:inphase + group:outphase,random=~1 | rep,data=data_grouped,weights = obs_weights[,i],...))
 
       if(verbose)cat("Performing f-test for variable",i,"...\n")
       ## calculate f-test
@@ -176,9 +229,9 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       # single_rhythm A
 
       model_ln_A<-switch(lm_method,
-                         lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights,...),
-                         lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights,...),
-                         nlme = nlme::lme(measure~ 0 + inphase + outphase,random=~1 | rep,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights,...))
+                         lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
+                         lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
+                         nlme = nlme::lme(measure~ 0 + inphase + outphase,random=~1 | rep,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
 
       cof_s<-matrix(0,nrow = ncol(design_s),ncol = ncol(design_s))
       colnames(cof_s)<-rownames(cof_s)<-c(colnames(design_s))
@@ -207,9 +260,9 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
       # single_rhythm B
       model_ln_B<-switch(lm_method,
-                         lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights,...),
-                         lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights,...),
-                         nlme = nlme::lme(measure~ 0 + inphase + outphase,random=~1 | rep,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights,...))
+                         lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
+                         lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
+                         nlme = nlme::lme(measure~ 0 + inphase + outphase,random=~1 | rep,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
 
 
       g <- multcomp::glht(model_ln_B, linfct = conts_g)
@@ -416,33 +469,51 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
   }else{
     if(verbose)cat("Performing single group inference","...\n")
+
+    if(verbose)cat("Preparing design matrix ...\n")
+    exp_design <- base::cbind(exp_design,
+                              inphase = cos(2 * pi * exp_design$time / period),
+                              outphase = sin(2 * pi * exp_design$time / period))
+
+    if ("batch" %in% colnames(exp_design)) {
+
+      design <- stats::model.matrix(~0 + inphase + outphase,
+                                    data = exp_design)
+    } else {
+
+      design <- stats::model.matrix(~0 + inphase + outphase,
+                                    data = exp_design)
+    }
+
+    design_t<-design
+
+    colnames(design) <- gsub(":", "_", colnames(design))
+
+    if(is(data_input,"DGEList")){
+      if(verbose)cat("Estimating weights for the input variables ...\n")
+
+      if(lm_method=="lm")
+      {
+        if(verbose)cat("lm_method is lm, voom will be used ...\n")
+        voom_res<-limma::voom(data_input, design, plot=FALSE)
+      }else{
+        formula<-~ 0 + inphase + outphase+(1 | rep)
+        voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design)
+      }
+      obs_weights <-t(voom_res$weights)
+      eset<-t(voom_res$E)
+    }
+
     res<-foreach::foreach(i=1:ncol(eset))%do%{#ncol(eset)
 
-      if(verbose)cat("Preparing design matrix for variable",i,"...\n")
-      exp_design <- base::cbind(exp_design,
-                                inphase = cos(2 * pi * exp_design$time / period),
-                                outphase = sin(2 * pi * exp_design$time / period))
 
-      if ("batch" %in% colnames(exp_design)) {
-
-        design <- stats::model.matrix(~0 + inphase + outphase,
-                                      data = exp_design)
-      } else {
-
-        design <- stats::model.matrix(~0 + inphase + outphase,
-                                      data = exp_design)
-      }
-
-      design_t<-design
-
-      colnames(design) <- gsub(":", "_", colnames(design))
 
       data_grouped<-cbind(measure=as.numeric(eset[,i]),exp_design)
       if(verbose)cat("Fitting the model for variable",i,"...\n")
       model_ln<-switch(lm_method,
-                       lm = lm(measure ~  inphase + outphase ,data=data_grouped,weights = obs_weights,...),
-                       lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped,weights = obs_weights,...),
-                       nlme = nlme::lme(measure~ 0 + inphase + outphase,random=~1 | rep,data=data_grouped,weights = obs_weights,...))
+                       lm = lm(measure ~  inphase + outphase ,data=data_grouped,weights = obs_weights[,i],...),
+                       lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...),
+                       nlme = nlme::lme(measure~ 0 + inphase + outphase,random=~1 | rep,data=data_grouped,weights = obs_weights[,i],...))
 
       if(verbose)cat("Calculating f-test for variable",i,"...\n")
       ## calculate f-test

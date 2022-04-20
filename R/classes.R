@@ -58,16 +58,26 @@ setMethod(show, "mixedcirc_fit", function(object) {print(x@results)})
 #' @import ggplot2
 #' @import ggsci
 
-print.mixedcirc_fit_list<-function(object) {cat("Total number of variables: ",length(object@results))}
+print.mixedcirc_fit_list<-function(x,...) {cat("Total number of variables: ",length(x@results))}
+print.mixedcirc_fit<-function(x,...) {print(x@results,...)}
+
+setMethod(show, "mixedcirc_fit", function(object) {print(object@results)})
 setMethod(show, "mixedcirc_fit_list", function(object) {cat("Total number of variables: ",length(object@results))})
 
 
-setMethod('[', "mixedcirc_fit_list",definition=function(x,i,j,drop){
-  x@results[[i]] })
+setMethod(`[`, "mixedcirc_fit_list", function(x,i=NULL,j=NULL) {
+  x@results[[i]]
+}
+)
 
-setMethod('[', "mixedcirc_fit",definition=function(x,i,j,drop){
-  x@results[j] })
+setMethod(`[`, "mixedcirc_fit", function(x,i=NULL,j=NULL) {
+  x@results[j]
+}
+)
+setMethod(length, "mixedcirc_fit_list", function(x) {length(x@results)})
 
-setMethod(length, "mixedcirc_fit_list",definition=function(x){
-  length(x@results) })
-
+setGeneric("plot", function(x, y, ...) standardGeneric("plot"))
+#' @export
+setMethod("plot", signature = c(x="mixedcirc_fit",y="missing"), function(x,y,...) {
+  mixedcirc_fit_plot(x,...)
+})
