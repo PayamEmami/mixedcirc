@@ -24,6 +24,7 @@ Depends:
     ggsci,
     ggpubr,
     variancePartition,
+    multtest,
     R (>= 2.10)
 Suggests: 
     rmarkdown,
