@@ -75,11 +75,11 @@ mixedcirc_fit_plot<- function(x,period=24,
   library(ggsci)
 
   if(class(fit)=="lm")
-    raw_data<-data.frame(measure=results[[1]]@fit$model[,"measure"],object@exp_design)
+    raw_data<-data.frame(measure=results[[1]]@fit$model[,"measure"],exp_design)
   else if (class(fit)=="lme")
-    raw_data<-data.frame(measure=fit$data[,"measure"],object@exp_design)
+    raw_data<-data.frame(measure=fit$data[,"measure"],exp_design)
   else
-    raw_data<-data.frame(measure=fit@frame[,"measure"],object@exp_design)
+    raw_data<-data.frame(measure=fit@frame[,"measure"],exp_design)
   time<-raw_data$time
 
   plot_tmp<-ggplot(data=raw_data,aes(x=time,y=measure,group=group,color=group,shape=group))
