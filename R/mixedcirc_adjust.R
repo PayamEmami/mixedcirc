@@ -47,7 +47,8 @@ mixedcirc_adjust <- function(input,method="BH",pattern="p_value",verbose=FALSE,.
 
   if(!method%in%c("holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
                   "fdr", "none"))
-    stop("method must be one of Bonferroni, Holm, Hochberg, SidakSS, SidakSD, BH, BY, ABH, TSBH")
+    stop("method must be one of Bonferroni, holm, hochberg, hommel, bonferroni, BH, BY,
+                  fdr, none")
 
   if(!is.character(pattern))
     stop("pattern must be a string (character)")
