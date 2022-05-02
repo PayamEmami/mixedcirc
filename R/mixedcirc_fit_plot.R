@@ -43,7 +43,15 @@ mixedcirc_fit_plot<- function(x,period=24,
                               plot_points=TRUE,plot_smooth=FALSE,plot_trend=TRUE,xlab="time",ylab="Expression") {
   object<-x
   fit<-object@fit
-  exp_design<-object@exp_design
+  pr_rows<-c()
+  if(class(fit)=="lm")
+    pr_rows<-rownames(fit[[1]]@fit$model)
+  else if (class(fit)=="lme")
+    pr_rows<-rownames(fit$data)
+  else
+    pr_rows<-rownames(fit@frame)
+
+  exp_design<-object@exp_design[rownames(object@exp_design)%in%pr_rows,]
   all_combs<-expand.grid(group=unique(object@exp_design[,"group"]))
   to_be_predited<-c()
   if(is.null(min_time))
