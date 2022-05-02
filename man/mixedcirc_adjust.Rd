@@ -15,7 +15,7 @@ mixedcirc_adjust(
 \arguments{
 \item{input}{An object of mixedcirc_fit_list. It has to contain more than one variable}
 
-\item{method}{A vector of character strings containing the names of the multiple testing procedures for which adjusted p-values are to be computed. This vector should include any of the following: "Bonferroni", "Holm", "Hochberg", "SidakSS", "SidakSD", "BH", "BY", "ABH", "TSBH".}
+\item{method}{A vector of character strings containing the names of the multiple testing procedures for which adjusted p-values are to be computed. This vector should include any of the following: "holm","hochberg","hommel","bonferroni", "BH", "BY","fdr" "none"}
 
 \item{pattern}{Columns of results with this pattern will be selected for doing adjustment. Default: p_value}
 
