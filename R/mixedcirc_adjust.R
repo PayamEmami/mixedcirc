@@ -11,9 +11,13 @@
 #' @examples
 #' data("circa_data")
 #'
-#'results <- mixedcirc_detect(data_input = circa_data$data_matrix,
-#'time = circa_data$time, group = circa_data$group, id = circa_data$id, period = 24, verbose = TRUE)
-#'results <- mixedcirc_adjust(results, method="bonferroni")
+#' results <- mixedcirc_detect(data_input = circa_data$data_matrix,
+#' time = circa_data$time,
+#' group = circa_data$group,
+#' id = circa_data$id,
+#' period = 24,
+#' verbose = TRUE)
+#' results <- mixedcirc_adjust(results, method = "bonferroni")
 #'
 #' @return
 #' A class of mixedcirc_fit_list in which the adjusted p-values have been added in the results
