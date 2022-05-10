@@ -43,20 +43,24 @@ mixedcirc_adjust <- function(input, method="BH", pattern="p_value", verbose=FALS
   # checking inputs
   if (!is(input, "mixedcirc_fit_list")) {
     #stop("input must be a data frame or matrix")
-    stop("input must be a mixedcirc_fit_list object")
+    stop("ERROR! Input must be a mixedcirc_fit_list object!")
+  }
+
+  if (length(input) < 2) {
+    stop("ERROR! Input has to be at least 2 elements long!")
   }
 
   if(!method %in% c("holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none")) {
-    stop("method must be one of: 'holm', 'hochberg', 'hommel', 'bonferroni', 'BH', 'BY', 'fdr' or 'none'")
+    stop("ERROR! Method must be one of: 'holm', 'hochberg', 'hommel', 'bonferroni', 'BH', 'BY', 'fdr' or 'none'")
   }
 
   if(!is.character(pattern)) {
-    stop("pattern must be a string (character vector)")
+    stop("ERROR! Pattern must be a string (character vector)!")
   }
 
 
   if(verbose) {
-    cat("gathering the data ...\n")
+    cat("Gathering the data ...\n")
   }
 
   data_gathered <- input@results
