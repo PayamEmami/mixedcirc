@@ -2,11 +2,11 @@
 #'
 #' This functions performs p-value adjustment on mixedcirc_fit_list
 #'
-#' @param input An object of mixedcirc_fit_list. It has to contain more than one variable
-#' @param method A vector of character strings containing the names of the multiple testing procedures for which adjusted p-values are to be computed. This vector should include any of the following: "holm","hochberg","hommel","bonferroni", "BH", "BY","fdr" "none"
-#' @param pattern Columns of results with this pattern will be selected for doing adjustment. Default: p_value
-#' @param verbose Show information about different stages of the processes. Default FALSE
-#' @param ... additional arguments passed to mt.rawp2adjp from multtest package
+#' @param input An object of mixedcirc_fit_list. It has to contain more than one variable.
+#' @param method A vector of character strings containing the names of the multiple testing procedures for which adjusted p-values are to be computed. This vector should include any of the following: "holm","hochberg","hommel","bonferroni", "BH", "BY","fdr" "none".
+#' @param pattern Columns of results with this pattern will be selected for doing adjustment. Default: p_value.
+#' @param verbose Show information about different stages of the processes. Default FALSE.
+#' @param ... additional arguments passed to mt.rawp2adjp from multtest package.
 #' @export
 #' @examples
 #' data("circa_data")
@@ -41,8 +41,9 @@ mixedcirc_adjust <- function(input, method="BH", pattern="p_value", verbose=FALS
   }
 
   # checking inputs
-  if (is(input, "mixedcirc_fit_list")) {
-    stop("input must be a data frame or matrix")
+  if (!is(input, "mixedcirc_fit_list")) {
+    #stop("input must be a data frame or matrix")
+    stop("input must be a mixedcirc_fit_list object")
   }
 
   if(!method %in% c("holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none")) {
