@@ -81,7 +81,7 @@ mixedcirc_adjust <- function(input, method="BH", pattern="p_value", verbose=FALS
     cat("Performing adjustment ...\n")
   }
 
-  myfn <- function(x) {
+  my_fn <- function(x) {
     val <- matrix(p.adjust(p=x, method=method))
     return(val)
   }
