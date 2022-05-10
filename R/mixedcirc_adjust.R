@@ -13,7 +13,7 @@
 #'
 #'results <- mixedcirc_detect(data_input = circa_data$data_matrix,
 #'time = circa_data$time, group = circa_data$group, id = circa_data$id, period = 24, verbose = TRUE)
-#'results <- mixedcirc_adjust(results, method="Bonferroni")
+#'results <- mixedcirc_adjust(results, method="bonferroni")
 #'
 #' @return
 #' A class of mixedcirc_fit_list in which the adjusted p-values have been added in the results
@@ -58,38 +58,41 @@ mixedcirc_adjust <- function(input, method="BH", pattern="p_value", verbose=FALS
     stop("pattern must be a string (character vector)!")
   }
 
-
   if (verbose) {
     cat("Gathering the data ...\n")
   }
 
   data_gathered <- input@results
-  data_gathered <- do.call(rbind,lapply(data_gathered, function(x) { x@results }))
+  data_gathered <- do.call(rbind, lapply(data_gathered, function(x) { x@results }))
 
-  selected_pvalues <- grepl(pattern = pattern,x = colnames(data_gathered))
+  selected_pvalues <- grepl(pattern=pattern, x=colnames(data_gathered))
 
   if (sum(selected_pvalues) == 0) {
     stop("did not find any column matching the provided pattern!")
   }
 
-  selected_data<-data_gathered[ , selected_pvalues, drop=F]
+  selected_data<-data_gathered[, selected_pvalues, drop=F]
 
   if (verbose) {
     cat("Performing adjustment ...\n")
   }
 
-  adjusted_pvalues <- apply(selected_data, MARGIN = 2, function(x) {
-    matrix(p.adjust(p = x, method = method))
-  }) [, , drop=F]
+  myfn <- function(x) {
+    val <- matrix(p.adjust(p=x, method=method))
+    return(val)
+  }
+  tmp <- apply(selected_data, MARGIN=2, FUN = my_fn)
+  adjusted_pvalues <- tmp[ , , drop=F]
 
-  colnames(adjusted_pvalues)<-paste(colnames(selected_data),"_adjusted_",method,sep="")
+  colnames(adjusted_pvalues) <- paste0(colnames(selected_data), "_adjusted_", method)
 
   if (verbose) {
     cat("Preparing the results ...\n")
   }
 
   for (i in 1:length(input)) {
-    input@results[[i]]@results<-cbind(input@results[[i]]@results[,,drop=F],adjusted_pvalues[i,,drop=F])
+    input@results[[i]]@results <- cbind(input@results[[i]]@results[ , , drop=F],
+                                        adjusted_pvalues[i, , drop=F])
   }
 
   if (verbose) {
