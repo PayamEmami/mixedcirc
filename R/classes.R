@@ -65,7 +65,7 @@ print.mixedcirc_fit_list <- function(x, ...) {
   cat("Total number of variables: ", length(x@results))
 }
 
-print.mixedcirc_fit <- function(x,...) { print(x@results, ...) }
+print.mixedcirc_fit <- function(x, ...) { print(x@results, ...) }
 
 setMethod(f = "show",
           signature = "mixedcirc_fit",
@@ -79,12 +79,12 @@ setMethod(f = "show",
 
 setMethod(f = `[`,
           signature = "mixedcirc_fit_list",
-          definition = function(x, i=NULL, j=NULL) { x@results[[i]] }
+          definition = function(x, i = NULL, j = NULL) { x@results[[i]] }
 )
 
 setMethod(f = `[`,
           signature = "mixedcirc_fit",
-          definition = function(x, i=NULL, j=NULL) { x@results[j] }
+          definition = function(x, i = NULL, j = NULL) { x@results[j] }
 )
 
 setMethod(f = "length",
@@ -98,6 +98,6 @@ setGeneric(name = "plot",
 
 #' @export
 setMethod(f = "plot",
-          signature = c(x="mixedcirc_fit", y="missing"),
+          signature = c(x = "mixedcirc_fit", y = "missing"),
           definition = function(x, y, ...) { mixedcirc_fit_plot(x, ...) }
 )

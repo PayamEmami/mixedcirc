@@ -69,24 +69,24 @@ mixedcirc_adjust <- function(input, method="BH", pattern="p_value", verbose=FALS
   data_gathered <- input@results
   data_gathered <- do.call(rbind, lapply(data_gathered, function(x) { x@results }))
 
-  selected_pvalues <- grepl(pattern=pattern, x=colnames(data_gathered))
+  selected_pvalues <- grepl(pattern = pattern, x = colnames(data_gathered))
 
   if (sum(selected_pvalues) == 0) {
     stop("did not find any column matching the provided pattern!")
   }
 
-  selected_data<-data_gathered[, selected_pvalues, drop=F]
+  selected_data<-data_gathered[, selected_pvalues, drop = F]
 
   if (verbose) {
     cat("Performing adjustment ...\n")
   }
 
   my_fn <- function(x) {
-    val <- matrix(p.adjust(p=x, method=method))
+    val <- matrix(p.adjust(p = x, method = method))
     return(val)
   }
-  tmp <- apply(selected_data, MARGIN=2, FUN = my_fn)
-  adjusted_pvalues <- tmp[ , , drop=F]
+  tmp <- apply(selected_data, MARGIN = 2, FUN = my_fn)
+  adjusted_pvalues <- tmp[ , , drop = F]
 
   colnames(adjusted_pvalues) <- paste0(colnames(selected_data), "_adjusted_", method)
 
@@ -96,7 +96,7 @@ mixedcirc_adjust <- function(input, method="BH", pattern="p_value", verbose=FALS
 
   for (i in 1:length(input)) {
     input@results[[i]]@results <- cbind(input@results[[i]]@results[ , , drop=F],
-                                        adjusted_pvalues[i, , drop=F])
+                                        adjusted_pvalues[i, , drop = F])
   }
 
   if (verbose) {
