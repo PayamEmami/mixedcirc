@@ -11,9 +11,13 @@
 #' @examples
 #' data("circa_data")
 #'
-#'results<-mixedcirc_detect(data_input = circa_data$data_matrix,
-#'time = circa_data$time,group = circa_data$group,id = circa_data$id,period = 24,verbose = TRUE)
-#'mixedcirc_detectpeaks(results[1][,5],min_time=0,tau=24)
+#'results <- mixedcirc_detect(data_input = circa_data$data_matrix,
+#'time = circa_data$time,
+#'group = circa_data$group,
+#'id = circa_data$id,
+#'period = 24,
+#'verbose = TRUE)
+#'mixedcirc_detectpeaks(results[1][,5], min_time=0)
 #'
 #' @return
 #' the peak time
@@ -35,8 +39,11 @@
 #' @import multtest
 
 
-mixedcirc_detectpeaks<-function(phi,period=24,min_time=0,correct_period=T,correct_min=F)
-{
+mixedcirc_detectpeaks <- function(phi,
+                                  period = 24,
+                                  min_time = 0,
+                                  correct_period = T,
+                                  correct_min = F,) {
   if(!is.numeric(phi))
     stop("phi must be numeric")
 
@@ -53,19 +60,18 @@ mixedcirc_detectpeaks<-function(phi,period=24,min_time=0,correct_period=T,correc
     stop("correct_min must be TRUE or FALSE")
 
   tau <- period
-  peak_time <- phi*tau/(2*pi)
+  peak_time <- phi * tau / (2 * pi)
   #peak_time<-round(peak_time)
-  if(correct_period){
-    while(peak_time > tau | peak_time < 0){
-      if(peak_time > tau){
+  if(correct_period) {
+    while (peak_time > tau | peak_time < 0){
+      if (peak_time > tau) {
         peak_time <- peak_time - tau
       }
-      if(peak_time<0){
+      if (peak_time < 0) {
         peak_time <- peak_time + tau
       }
     }
-    if(correct_min & peak_time<min_time)
-    {
+    if (correct_min & peak_time < min_time) {
       peak_time <- peak_time + tau
     }
   }
