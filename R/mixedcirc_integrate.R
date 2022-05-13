@@ -8,10 +8,6 @@
 #' @param period Period of circadian rhythm. Default: 24
 #' @param ncomp Number of components. If set to 0, maximum number of possible components will be calculated (default: 2)
 #' @param variables A named list where in each element (one per data set) is a vector of length ncomp. Each element of the vector must be the number of variables retained on that particular component
-#' @param lm_method The regression method to use. At this stage, `lm`,`lme`,`nlme` are supported! If lm is selected, normal regression will be performed. Default: "lme"
-#' @param f_test Type of f-test for calculating p-value of the rhythm. Possible values are "multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger". Default: Satterthwaite
-#' @param abs_phase Whether to return absolute phase or not. Default: TRUE
-#' @param obs_weights Regression weights. Default: NULL. See details
 #' @param decompose decomposes the Within variation in the data set with respect to id (default: FALSE)
 #' @param center Centers the columns of each data set to zero
 #' @param scale scale each data set by dividing each column by its standard deviation
@@ -64,7 +60,7 @@ mixedcirc_integrate <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
                              f_test=c("multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger")[3],
                              abs_phase=TRUE,decompose=FALSE,center=TRUE,scale=FALSE,merge=FALSE,no_correlation=FALSE,
                              no_interaction=FALSE,
-                             max.iter = 100000,verbose=FALSE,...){
+                             max.iter = max.iter,verbose=FALSE,...){
 
   if(verbose)cat("Checking inputs ...\n")
   # checking inputs
@@ -168,7 +164,7 @@ mixedcirc_integrate <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
   if(!is.null(id) & decompose){
     if(verbose)
     cat("Performing the Within variation decomposition ...\n")
-    data_input<-lapply(data_input,mixOmics::withinVariation)
+    data_input<-lapply(data_input,function(x){mixOmics::withinVariation(x,as.data.frame(id))})
   }
   if(verbose)
   cat("Performing scaling ...\n")
