@@ -21,7 +21,7 @@ mixedcirc_integrate(
   merge = FALSE,
   no_correlation = FALSE,
   no_interaction = FALSE,
-  max.iter = 1e+05,
+  max.iter = max.iter,
   verbose = FALSE,
   ...
 )
@@ -38,12 +38,6 @@ mixedcirc_integrate(
 \item{ncomp}{Number of components. If set to 0, maximum number of possible components will be calculated (default: 2)}
 
 \item{variables}{A named list where in each element (one per data set) is a vector of length ncomp. Each element of the vector must be the number of variables retained on that particular component}
-
-\item{lm_method}{The regression method to use. At this stage, `lm`,`lme`,`nlme` are supported! If lm is selected, normal regression will be performed. Default: "lme"}
-
-\item{f_test}{Type of f-test for calculating p-value of the rhythm. Possible values are "multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger". Default: Satterthwaite}
-
-\item{abs_phase}{Whether to return absolute phase or not. Default: TRUE}
 
 \item{decompose}{decomposes the Within variation in the data set with respect to id (default: FALSE)}
 
@@ -62,8 +56,6 @@ mixedcirc_integrate(
 \item{verbose}{Show information about different stages of the processes. Default FALSE}
 
 \item{...}{additionl arguments to the regression function}
-
-\item{obs_weights}{Regression weights. Default: NULL. See details}
 }
 \value{
 A class of \code{\link{mixedcirc_integration}}.
