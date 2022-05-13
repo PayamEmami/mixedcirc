@@ -454,6 +454,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
       if(verbose)cat("Preparing output for variable",i,"...\n")
       dt_out<-data.frame(mesor_A=mesor_A,mesor_B=mesor_B,amps_A=amps_A,amps_B=amps_B,phases_A=phases_A,phases_B=phases_B,global_p_value=f_p_value,diff_p_value=f_p_value_diff,f_p_value_A=f_p_value_A,f_p_value_B=f_p_value_B)
+      rownames(dt_out)<-colnames(eset)[i]
       if(abs_phase){dt_out<-abs(dt_out)}
       colnames(dt_out)<-gsub(pattern = "_A",replacement = paste("_",group_id[1],sep = ""),x = colnames(dt_out),fixed = T)
       colnames(dt_out)<-gsub(pattern = "_B",replacement = paste("_",group_id[2],sep = ""),x = colnames(dt_out),fixed = T)
@@ -602,6 +603,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
       if(verbose)cat("Preparing output for variable ",i,"...\n")
       dt_out<-data.frame(amps_A=amps_A,phases_A=phases_A,pglobal_p_value=f_p_value)
+      rownames(dt_out)<-colnames(eset)[i]
       if(abs_phase){dt_out<-abs(dt_out)}
 
       if(verbose)cat("Variable ",i," finished...\n")
