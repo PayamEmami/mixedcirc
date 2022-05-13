@@ -39,9 +39,15 @@
 #' @importFrom graphics plot
 #' @export
 mixedcirc_fit_plot<- function(x,period=24,
-                              min_time=NULL,max_time=NULL,plot_title="variable",
+                              min_time=NULL,max_time=NULL,plot_title=NULL,
                               plot_points=TRUE,plot_smooth=FALSE,plot_trend=TRUE,xlab="time",ylab="Expression") {
   object<-x
+  if(is.null(plot_title))
+  {
+    plot_title<-rownames(object@results)
+    if(is.null(plot_title))plot_title<-"Variable"
+  }
+
   fit<-object@fit
   pr_rows<-c()
   if(class(fit)=="lm")
