@@ -23,7 +23,7 @@
 #'data("circa_data")
 #'data_input<-list(a=circa_data$data_matrix[,1:3],b=circa_data$data_matrix[,3:7])
 #'results<-mixedcirc_integrate(data_input,time = circa_data$time,group = circa_data$group,id = circa_data$id)
-#'data_matrix<-mixedcirc_getscore(ee,type = "partial",merge = T)
+#'data_matrix<-mixedcirc_getscore(results,type = "partial",merge = T)
 #'fitted_data<-mixedcirc_detect(data_matrix,time = circa_data$time,group = circa_data$group,id = circa_data$id)
 #'plot(fitted_data[1])
 #'
@@ -321,7 +321,7 @@ return(output)
 #' This functions performs circadian rhythm data integration using canonical correlations.
 #'
 #' @param input A mixedcirc_integration object
-#' @param type what scores to retrieve (partial, average, loadings)
+#' @param type what scores to retrieve (partial, average, loadings, model)
 #' @param dataset name of the data set to extract the data from
 #' @param merge If TRUE, the scores or loadings will be merged into a single data frame (default: FALSE). This has no effect if \code{type} is average!
 #' @param verbose Enables printing logs
@@ -346,21 +346,24 @@ if(!is(input,"mixedcirc_integration"))
   stop("input must be mixedcirc_integrate!")
 
   if(is.null(type))stop("type need to be provided!")
-  if(!type%in%c("partial","average","loadings"))
+  if(!type%in%c("partial","average","loadings","model"))
     stop("type must be one of partial, average or loadings!")
 
-  if(!merge){
+  if(type=="model")
+    return(slot(input,type))
+
+  if(!merge & type!="average"){
     if( is.null(dataset))stop("dataset needs to be provided or set the merge to TRUE")
   }else{
     dataset <- names(input@partial)[1]
   }
 
-  if(!dataset%in%c(names(input@partial),"average"))
-    stop("dataset must be one of ", paste(c(names(input@partial),"average"),collapse = ", "))
+  if(!dataset%in%c(names(input@partial)) & type!="average")
+    stop("dataset must be one of ", paste(c(names(input@partial)),collapse = ", "))
 
   if(verbose)
     cat("Extracting data ...!\n")
-  if(dataset=="average")
+  if(type=="average")
     return(as.matrix(input@average))
 
   if(merge){

@@ -15,7 +15,7 @@ mixedcirc_getscore(
 \arguments{
 \item{input}{A mixedcirc_integration object}
 
-\item{type}{what scores to retrieve (partial, average, loadings)}
+\item{type}{what scores to retrieve (partial, average, loadings, model)}
 
 \item{dataset}{name of the data set to extract the data from}
 
