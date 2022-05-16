@@ -3,6 +3,7 @@
 export(mixedcirc_adjust)
 export(mixedcirc_detect)
 export(mixedcirc_detectpeaks)
+export(mixedcirc_detrend)
 export(mixedcirc_fit_plot)
 export(mixedcirc_getscore)
 export(mixedcirc_integrate)
