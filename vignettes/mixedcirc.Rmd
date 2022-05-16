@@ -175,4 +175,45 @@ results<-mixedcirc_detect(data_input =data_input$b[,c("data_2_1","data_2_2","dat
 cowplot::plot_grid(plot(results[1]),plot(results[2]),plot(results[3]))
 
 ```
+# Detrending and heatmap
 
+`mixedcirc` can also be used to remove linear trend in the data, making it easier to visualize the pattern using for example heatmaps.
+
+the function `mixedcirc_detrend` fits a linear trend to the fitted cosine model and return a matrix of de-trended data.
+
+Let's for the start plot the heatmap of the data:
+
+```{r,warning=FALSE,error=FALSE,message=FALSE}
+
+library(mixedcirc)
+data("circa_data")
+
+
+heatmap(t(circa_data$data_matrix[order(circa_data$group,circa_data$time),]),Rowv = NA,Colv = NA,
+        ColSideColors   = c("red","blue")[as.factor(circa_data$group[order(circa_data$group)])])
+
+```
+
+The heatmpa already looks very good (simulated data of course!). Let's do the same thing after detrending
+
+We first fit our model using our usual functions:
+
+```{r,warning=FALSE,error=FALSE,message=FALSE}
+
+
+results<-mixedcirc_detect(data_input = circa_data$data_matrix,
+                          time = circa_data$time,group = circa_data$group,id = circa_data$id,period = 24,verbose = FALSE)
+
+```
+
+We can now do the detrending directly on the `results` object:
+
+```{r,warning=FALSE,error=FALSE,message=FALSE}
+
+detrended<-mixedcirc_detrend(results,per_group = FALSE,verbose = FALSE)
+
+heatmap(t(detrended[order(circa_data$group,circa_data$time),]),Rowv = NA,Colv = NA,
+        ColSideColors   = c("red","blue")[as.factor(circa_data$group[order(circa_data$group)])])
+```
+
+We can see that the trend is slightly more visible. In fact, by doing the de-trending, we can remove all the visual artifacts that can otherwise negatively impact the heatmap or similar visualization techniques.

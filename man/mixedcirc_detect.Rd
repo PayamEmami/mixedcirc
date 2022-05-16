@@ -10,7 +10,7 @@ mixedcirc_detect(
   group = NULL,
   id = NULL,
   period = 24,
-  lm_method = c("lm", "lme", "nlme")[2],
+  lm_method = c("lm", "lme")[2],
   f_test = c("multcomp_f", "multcomp_chi", "Satterthwaite", "Kenward-Roger")[3],
   abs_phase = TRUE,
   obs_weights = NULL,
@@ -29,7 +29,7 @@ mixedcirc_detect(
 
 \item{period}{Period of circadian rhythm. Default: 24}
 
-\item{lm_method}{The regression method to use. At this stage, `lm`,`lme`,`nlme` are supported! If lm is selected, normal regression will be performed. Default: "lme"}
+\item{lm_method}{The regression method to use. At this stage, `lm` and `lme` are supported! If lm is selected, normal regression will be performed. Default: "lme"}
 
 \item{f_test}{Type of f-test for calculating p-value of the rhythm. Possible values are "multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger". Default: Satterthwaite}
 
