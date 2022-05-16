@@ -75,7 +75,7 @@ library(mixedcirc)
 data("circa_data")
 data_input<-list(a=circa_data$data_matrix[,1:3],b=circa_data$data_matrix[,3:7])
 results<-mixedcirc_integrate(data_input,time = circa_data$time,group = circa_data$group,id = circa_data$id)
-data_matrix<-mixedcirc_getscore(ee,type = "partial",merge = T)
+data_matrix<-mixedcirc_getscore(results,type = "partial",merge = T)
 fitted_data<-mixedcirc_detect(data_matrix,time = circa_data$time,group = circa_data$group,id = circa_data$id)
 plot(fitted_data[1])
 

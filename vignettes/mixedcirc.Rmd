@@ -85,7 +85,8 @@ The main function of the package is `mixedcirc_detect`. It accepts a data frame 
 
 For example, let's our simulated data:
 
-```{r setup}
+```{r setup,warning=FALSE,error=FALSE,message=FALSE}
+library(mixedcirc)
 data("circa_data")
 str(circa_data)
 ```
@@ -94,7 +95,7 @@ This dataset contains a data matrix of `r nrow(circa_data$data_matrix)` samples 
 
 We can now do differntial rhythmicity analysis using
 
-```{r}
+```{r,warning=FALSE,error=FALSE,message=FALSE}
 results<-mixedcirc_detect(data_input = circa_data$data_matrix,time = circa_data$time,
                           group = circa_data$group,id = circa_data$id,period = 24,
                           verbose = FALSE)
@@ -102,12 +103,12 @@ results<-mixedcirc_detect(data_input = circa_data$data_matrix,time = circa_data$
 
 We can see that we have `r length(results)` variables. The result of each, can be printed
 
-```{r}
+```{r,warning=FALSE,error=FALSE,message=FALSE}
 print(results[1])
 ```
 We can also plot individual variable:
 
-```{r}
+```{r,warning=FALSE,error=FALSE,message=FALSE}
 plot(results[1])
 ```
 
