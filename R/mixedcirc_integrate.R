@@ -263,7 +263,7 @@ mixedcirc_integrate <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
   if(verbose)
   cat("Extracting data ...\n")
   partial_scores<-sgcca_model$variates[-which(names(sgcca_model$variates)%in%c("Y_time","Y_group"))]
-  partial_loadings<-sgcca_model$variates[-which(names(sgcca_model$loadings)%in%c("Y_time","Y_group"))]
+  partial_loadings<-sgcca_model$loadings[-which(names(sgcca_model$loadings)%in%c("Y_time","Y_group"))]
   if(verbose)
   cat("Calculating the average score ...\n")
   block_object<-sgcca_model
