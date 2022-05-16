@@ -86,6 +86,7 @@ The main function of the package is `mixedcirc_detect`. It accepts a data frame 
 For example, let's our simulated data:
 
 ```{r setup}
+library(mixedcirc)
 data("circa_data")
 str(circa_data)
 ```
