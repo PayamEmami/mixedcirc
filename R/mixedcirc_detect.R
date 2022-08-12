@@ -7,7 +7,7 @@
 #' @param group A character vector of length N. If performing differential circadian rhythm analysis, group is a factor, showing grouping of the samples. Analysis of two groups is supported at this stage! See details!
 #' @param id A vector of length N showing identity of each *unique* sample. See details
 #' @param period Period of circadian rhythm. Default: 24
-#' @param lm_method The regression method to use. At this stage, `lm`,`lme`,`nlme` are supported! If lm is selected, normal regression will be performed. Default: "lme"
+#' @param lm_method The regression method to use. At this stage, `lm` and `lme` are supported! If lm is selected, normal regression will be performed. Default: "lme"
 #' @param f_test Type of f-test for calculating p-value of the rhythm. Possible values are "multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger". Default: Satterthwaite
 #' @param abs_phase Whether to return absolute phase or not. Default: TRUE
 #' @param obs_weights Regression weights. Default: NULL. See details
@@ -48,7 +48,7 @@
 
 
 mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
-                                    period=24,lm_method=c("lm","lme","nlme")[2],
+                                    period=24,lm_method=c("lm","lme")[2],
                                     f_test=c("multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger")[3],
                                     abs_phase=TRUE,obs_weights=NULL,verbose=FALSE,...){
   doFuture::registerDoFuture()
@@ -120,7 +120,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
   if(!is.numeric(period))
     stop("*period* must be numeric!")
 
-  lm_method <- match.arg(lm_method,c("lm","lme","nlme"))
+  lm_method <- match.arg(lm_method,c("lm","lme"))
   f_test <- match.arg(f_test,c("multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger"))
 
   if(!is(data_input,"DGEList"))
@@ -196,8 +196,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       if(verbose)cat("Fitting the model for variable",i,"...\n")
       model_ln<-switch(lm_method,
                        lm = lm(measure ~0 + group + group:inphase + group:outphase ,data=data_grouped,weights = obs_weights[,i],...),
-                       lme = lme4::lmer(measure~ 0 + group + group:inphase + group:outphase+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...),
-                       nlme = nlme::lme(measure~ 0 + group + group:inphase + group:outphase,random=~1 | rep,data=data_grouped,weights = obs_weights[,i],...))
+                       lme = lme4::lmer(measure~ 0 + group + group:inphase + group:outphase+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
 
       if(verbose)cat("Performing f-test for variable",i,"...\n")
       ## calculate f-test
@@ -230,8 +229,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
       model_ln_A<-switch(lm_method,
                          lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
-                         lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
-                         nlme = nlme::lme(measure~ 0 + inphase + outphase,random=~1 | rep,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
+                         lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
 
       cof_s<-matrix(0,nrow = ncol(design_s),ncol = ncol(design_s))
       colnames(cof_s)<-rownames(cof_s)<-c(colnames(design_s))
@@ -261,8 +259,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       # single_rhythm B
       model_ln_B<-switch(lm_method,
                          lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
-                         lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
-                         nlme = nlme::lme(measure~ 0 + inphase + outphase,random=~1 | rep,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
+                         lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
 
 
       g <- multcomp::glht(model_ln_B, linfct = conts_g)
@@ -454,6 +451,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
       if(verbose)cat("Preparing output for variable",i,"...\n")
       dt_out<-data.frame(mesor_A=mesor_A,mesor_B=mesor_B,amps_A=amps_A,amps_B=amps_B,phases_A=phases_A,phases_B=phases_B,global_p_value=f_p_value,diff_p_value=f_p_value_diff,f_p_value_A=f_p_value_A,f_p_value_B=f_p_value_B)
+      rownames(dt_out)<-colnames(eset)[i]
       if(abs_phase){dt_out<-abs(dt_out)}
       colnames(dt_out)<-gsub(pattern = "_A",replacement = paste("_",group_id[1],sep = ""),x = colnames(dt_out),fixed = T)
       colnames(dt_out)<-gsub(pattern = "_B",replacement = paste("_",group_id[2],sep = ""),x = colnames(dt_out),fixed = T)
@@ -512,8 +510,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       if(verbose)cat("Fitting the model for variable",i,"...\n")
       model_ln<-switch(lm_method,
                        lm = lm(measure ~  inphase + outphase ,data=data_grouped,weights = obs_weights[,i],...),
-                       lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...),
-                       nlme = nlme::lme(measure~ 0 + inphase + outphase,random=~1 | rep,data=data_grouped,weights = obs_weights[,i],...))
+                       lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
 
       if(verbose)cat("Calculating f-test for variable",i,"...\n")
       ## calculate f-test
@@ -602,6 +599,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
       if(verbose)cat("Preparing output for variable ",i,"...\n")
       dt_out<-data.frame(amps_A=amps_A,phases_A=phases_A,pglobal_p_value=f_p_value)
+      rownames(dt_out)<-colnames(eset)[i]
       if(abs_phase){dt_out<-abs(dt_out)}
 
       if(verbose)cat("Variable ",i," finished...\n")

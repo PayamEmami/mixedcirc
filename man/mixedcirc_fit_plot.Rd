@@ -9,7 +9,7 @@ mixedcirc_fit_plot(
   period = 24,
   min_time = NULL,
   max_time = NULL,
-  plot_title = "variable",
+  plot_title = NULL,
   plot_points = TRUE,
   plot_smooth = FALSE,
   plot_trend = TRUE,

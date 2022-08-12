@@ -17,7 +17,7 @@
 #'id = circa_data$id,
 #'period = 24,
 #'verbose = TRUE)
-#'mixedcirc_detectpeaks(results[1][,5], min_time=0)
+#'mixedcirc_detectpeaks(results[1][,5], min_time = 0)
 #'
 #' @return
 #' numeric - the peak time

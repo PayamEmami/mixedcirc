@@ -26,6 +26,9 @@ Depends:
     ggpubr,
     variancePartition,
     multtest,
+    mixOmics,
+    cowplot,
+    dplyr,
     R (>= 2.10)
 Suggests: 
     rmarkdown,

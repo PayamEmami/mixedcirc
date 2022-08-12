@@ -61,16 +61,26 @@ setMethod(f = "show",
 #' @import ggplot2
 #' @import ggsci
 
-print.mixedcirc_fit_list <- function(x, ...) {
-  cat("Total number of variables: ", length(x@results))
-}
-
-print.mixedcirc_fit <- function(x, ...) { print(x@results, ...) }
-
 setMethod(f = "show",
           signature = "mixedcirc_fit",
           definition = function(object) { print(object@results) }
 )
+
+print.mixedcirc_fit_list <- function(x, ...) {
+	cat('Total number of variables: ', length(x@results))
+}
+
+print.mixedcirc_fit <- function(x, ...) {
+	print(x@results, ...)
+}
+
+setMethod(show, "mixedcirc_integration", function(object) {
+  cat('Total number of Omics: ', length(object@partial), '! Use partial or average scores in mixedcirc_detect!')
+})
+
+print.mixedcirc_integration <- function(x, ...) {
+	cat('Total number of Omics: ', length(object@partial),'! Use partial or average scores in mixedcirc_detect!')
+}
 
 setMethod(f = "show",
           signature = "mixedcirc_fit_list",
@@ -100,4 +110,16 @@ setGeneric(name = "plot",
 setMethod(f = "plot",
           signature = c(x = "mixedcirc_fit", y = "missing"),
           definition = function(x, y, ...) { mixedcirc_fit_plot(x, ...) }
+
+#' Represents the result of integration on multiple data sets
+#'
+#' @slot partial A list of partial scores for individual data sets
+#' @slot average A matrix of average scores
+#' @slot loadings A List of loadings for individual data sets
+#' @slot model The original model fitted
+#'
+mixedcirc_integration <- setClass('mixedcirc_integration',
+	slots = list(partial = 'list', 
+		average = 'matrix', 
+		loadings = 'list', model = 'ANY')
 )
