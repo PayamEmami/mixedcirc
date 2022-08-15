@@ -1,6 +1,6 @@
 # mixedcirc
 
-![]('/assets/hexSticker.png')
+![hexSticker](/assets/hexSticker.png)
 `mixedcirc` uses mixed models to perform differential circadian rhythm analysis.
 
 # Installation
