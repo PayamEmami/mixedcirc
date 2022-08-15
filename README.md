@@ -1,4 +1,4 @@
-# mixedcirc <img src="/assets/hexSticker.png" width="120" align="right" />
+# mixedcirc <img src="/assets/hexSticker.png" width="150" align="right" />
 
 ## Overview 
 
