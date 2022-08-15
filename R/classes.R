@@ -109,7 +109,8 @@ setGeneric(name = "plot",
 #' @export
 setMethod(f = "plot",
           signature = c(x = "mixedcirc_fit", y = "missing"),
-          definition = function(x, y, ...) { mixedcirc_fit_plot(x, ...) }
+          definition = function(x, y, ...){ mixedcirc_fit_plot(x, ...) }
+         )
 
 #' Represents the result of integration on multiple data sets
 #'
@@ -119,7 +120,7 @@ setMethod(f = "plot",
 #' @slot model The original model fitted
 #'
 mixedcirc_integration <- setClass('mixedcirc_integration',
-	slots = list(partial = 'list', 
-		average = 'matrix', 
+	slots = list(partial = 'list',
+		average = 'matrix',
 		loadings = 'list', model = 'ANY')
 )

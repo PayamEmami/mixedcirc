@@ -1,5 +1,6 @@
 # mixedcirc
 
+!['assets/hexSticker.png']
 `mixedcirc` uses mixed models to perform differential circadian rhythm analysis.
 
 # Installation
@@ -12,7 +13,7 @@ library(mixedcirc)
 To install the vignettes, use:
 
 ```r
-devtools::install_github("PayamEmami/mixedcirc",build_vignettes = TRUE)
+devtools::install_github("PayamEmami/mixedcirc", build_vignettes = TRUE)
 library(mixedcirc)
 ```
 
