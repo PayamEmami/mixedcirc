@@ -4,7 +4,7 @@ Title: Circadian rhythm analysis using mixed models
 Version: 0.1.0
 Author: Payam Emami
 Maintainer: Payam Emami <payam.emami@scilifelab.se>
-Description: mixedcirc perform differential circadian rhythm analysis using mixed models.
+Description: mixedcirc performs differential circadian rhythm analysis using mixed models.
     This is mostly used when the dataset includes repeated measurements.
 License: Apache License (>= 2)
 Encoding: UTF-8
@@ -14,6 +14,7 @@ Depends:
     stats,
     multcomp,
     doFuture,
+    foreach,
     future,
     nlme,
     future.apply,
@@ -31,5 +32,6 @@ Depends:
     R (>= 2.10)
 Suggests: 
     rmarkdown,
-    knitr
+    knitr,
+    renv
 VignetteBuilder: knitr

@@ -35,8 +35,11 @@ The p-values from the matching columns will be adjusted one column at the time u
 \examples{
 data("circa_data")
 
-results<-mixedcirc_detect(data_input = circa_data$data_matrix,
-time = circa_data$time,group = circa_data$group,id = circa_data$id,period = 24,verbose = TRUE)
-results<-mixedcirc_adjust(results,method="Bonferroni")
-
+results <- mixedcirc_detect(data_input = circa_data$data_matrix,
+time = circa_data$time,
+group = circa_data$group,
+id = circa_data$id,
+period = 24,
+verbose = TRUE)
+results <- mixedcirc_adjust(results,method="bonferroni")
 }

@@ -21,21 +21,23 @@ knitr::opts_chunk$set(
 In this part we do rhythmicity analysis on individual variables using the following model:
 
 $$ 
-expression= group_{1}+group_{2}+group_{1} \times cos(\frac{2\times \pi \times time}{24}) + group_{2} \times cos(\frac{2\times \pi \times time}{24}) +group_{1} \times sin(\frac{2\times \pi \times time}{24}) + group_{2} \times sin(\frac{2\times \pi \times time}{24}) + random(subject)
+expression = group_{1} + group_{2} + group_{1} \times cos(\frac{2\times \pi \times time}{24}) + group_{2} \times cos(\frac{2\times \pi \times time}{24}) + group_{1} \times sin(\frac{2\times \pi \times time}{24}) + group_{2} \times sin(\frac{2\times \pi \times time}{24}) + random(subject)
 $$
 
 The evaluation of the model for global rhythmicity is performed using different statistics on combined null hypothesis:
 
-$$group_{1} \times cos(\frac{2\times \pi \times time}{24}) = 0 \\
+$$
+group_{1} \times cos(\frac{2\times \pi \times time}{24}) = 0 \\
 group_{2} \times cos(\frac{2\times \pi \times time}{24}) = 0 \\
 group_{1} \times sin(\frac{2\times \pi \times time}{24}) = 0 \\
-group_{2} \times sin(\frac{2\times \pi \times time}{24}) =0
+group_{2} \times sin(\frac{2\times \pi \times time}{24}) = 0
 $$
 
 
 The evaluation of differential rhythmicity is performed using different statistics on combined null hypothesis:
 
-$$group_{1} \times cos(\frac{2\times \pi \times time}{24}) - group_{2} \times cos(\frac{2\times \pi \times time}{24}) = 0 \\
+$$
+group_{1} \times cos(\frac{2\times \pi \times time}{24}) - group_{2} \times cos(\frac{2\times \pi \times time}{24}) = 0 \\
 group_{1} \times sin(\frac{2\times \pi \times time}{24}) - group_{2} \times sin(\frac{2\times \pi \times time}{24}) = 0 \\
 $$
 
@@ -44,7 +46,7 @@ The amplitude is transformed using:
 
 
 $$
-amplitude_{\text(group_{1})}=\sqrt{(group_{1} \times cos(\frac{2\times \pi \times time}{24}))^2 + (group_{1} \times sin(\frac{2\times \pi \times time}{24}))^2 }
+amplitude_{\text(group_{1})}=\sqrt{ (group_{1} \times cos(\frac{2\times \pi \times time}{24}))^2 + (group_{1} \times sin(\frac{2\times \pi \times time}{24}))^2 }
 $$
 
 The phase is calculate as:
@@ -58,12 +60,12 @@ Phase is further corrected as
 
 $$
 \DeclareMathOperator{\sign}{sign}
-phase_{\text{groupA}}=\left\{
+phase_{\text{groupA}} = \left\{
   \begin{array}{@{}ll@{}}
-     -1 \times phase_{\text{group 1}}, & \text{if}\ (sb=1 \ \text{or} \ sb=0) \ \text{and} \ sg=1 \\
-    phase_{\text{group 1}}-\pi, & \text{if}\ sb=-1 \ \text{and} \ (sg=0 \ \text{or} \ sg=1) \\
-    -phase_{\text{group 1}}-\pi, & \text{if}\ (sb=-1 \ \text{or} \ sb=0) \ \text{and} \ sg=-1\\
-    phase_{\text{group 1}}-2\times \pi, & \text{if}\ sb=1 \ \text{and} \ (sg=-1 \ \text{or} \ sg=-1) 
+     -1 \times phase_{\text{group 1}}, & \text{IF}\ (sb=1 \ \text{OR} \ sb=0) \ \text{AND} \ sg=1 \\
+    phase_{\text{group 1}}-\pi, & \text{IF}\ sb=-1 \ \text{AND} \ (sg=0 \ \text{OR} \ sg=1) \\
+    -phase_{\text{group 1}}-\pi, & \text{IF}\ (sb=-1 \ \text{OR} \ sb=0) \ \text{AND} \ sg=-1\\
+    phase_{\text{group 1}}-2\times \pi, & \text{IF}\ sb=1 \ \text{AND} \ (sg=-1 \ \text{OR} \ sg=-1) 
   \end{array}\right.
 $$
 where $sb$ is defined as sign of $sb=cos(\frac{2\times \pi \times time}{24})$ and $sg$ as $sg=sin(\frac{2\times \pi \times time}{24})$. The sign is defined as:
@@ -86,8 +88,8 @@ The main function of the package is `mixedcirc_detect`. It accepts a data frame 
 For example, let's our simulated data:
 
 ```{r setup,warning=FALSE,error=FALSE,message=FALSE}
-library(mixedcirc)
-data("circa_data")
+library('mixedcirc')
+data('circa_data')
 str(circa_data)
 ```
 
@@ -95,10 +97,13 @@ This dataset contains a data matrix of `r nrow(circa_data$data_matrix)` samples 
 
 We can now do differntial rhythmicity analysis using
 
-```{r,warning=FALSE,error=FALSE,message=FALSE}
-results<-mixedcirc_detect(data_input = circa_data$data_matrix,time = circa_data$time,
-                          group = circa_data$group,id = circa_data$id,period = 24,
-                          verbose = FALSE)
+```{r warning = FALSE, error = FALSE, message = FALSE}
+results <- mixedcirc_detect(data_input = circa_data$data_matrix,
+                            time = circa_data$time,
+                            group = circa_data$group,
+                            id = circa_data$id,
+                            period = 24,
+                            verbose = FALSE)
 ```
 
 We can see that we have `r length(results)` variables. The result of each, can be printed
@@ -108,13 +113,13 @@ print(results[1])
 ```
 We can also plot individual variable:
 
-```{r,warning=FALSE,error=FALSE,message=FALSE}
+```{r, warning=FALSE, error=FALSE, message=FALSE}
 plot(results[1])
 ```
 
 The plotting function gives you several options to tune how the data is plotted. For example, one can add smoothing line to the data and check where the "data-driven" lines are following the fitted lines.
 
-```{r,warning=FALSE,error=FALSE,message=FALSE}
+```{r, warning=FALSE, error=FALSE, message=FALSE}
 plot(results[1],plot_smooth=TRUE,plot_points=FALSE)
 ```
 
@@ -129,9 +134,9 @@ This function is provides by `mixedcirc_integrate` function. To use this, we fir
 Data input is a list of data.frames or matrices, each containing one of the datasets.
 
 
-```{r,warning=FALSE,error=FALSE,message=FALSE}
-library(mixedcirc)
-data("circa_data")
+```{r, warning=FALSE, error=FALSE, message=FALSE}
+library('mixedcirc')
+data('circa_data')
 data_1<-circa_data$data_matrix[,1:3]
 colnames(data_1)<-paste("data_1_",1:ncol(data_1),sep = "")
 data_2<-circa_data$data_matrix[,3:7]
@@ -146,15 +151,15 @@ In the code above, we have created two data sets, `a` and `b` and placed then in
 We can now simply, use `` function to do the data integration.
 
 ```{r,warning=FALSE,error=FALSE,message=FALSE}
-results<-mixedcirc_integrate(data_input,time = circa_data$time,group = circa_data$group,id = circa_data$id)
+results <- mixedcirc_integrate(data_input, time = circa_data$time, group = circa_data$group,id = circa_data$id)
 ```
 
 The result of this function is an object of `mixedcirc_integration` class that includes partial scores (for each data type), average scores and loadings.We can extract this information using `mixedcirc_getscore` and perform rhythm analysis using `mixedcirc_detect`. 
 
 ```{r,warning=FALSE,error=FALSE,message=FALSE}
-data_matrix<-mixedcirc_getscore(results,type = "average")
-fitted_data<-mixedcirc_detect(data_matrix,time = circa_data$time,group = circa_data$group,id = circa_data$id)
-plot(fitted_data[1],plot_points=FALSE,ylab="L1")
+data_matrix <- mixedcirc_getscore(results, type = 'average')
+fitted_data <- mixedcirc_detect(data_matrix, time = circa_data$time, group = circa_data$group, id = circa_data$id)
+plot(fitted_data[1], plot_points=FALSE, ylab='L1')
 ```
 
 The plotted scores are supposed to have captured the overall trend of the data. The loadings can be extracted and used to select variables or do clustering.
@@ -169,17 +174,17 @@ mixOmics::plotLoadings(model,block="b")
 This plot shows that the contribution of variable `data_2_4` is the largest among other variables. More importantly, it will tell us that data_2_1 vs `data_2_3` have more similar pattern compared to `data_2_2` vs. `data_2_3`
 
 ```{r,warning=FALSE,error=FALSE,message=FALSE}
-results<-mixedcirc_detect(data_input =data_input$b[,c("data_2_1","data_2_2","data_2_4"),drop=F],time = circa_data$time,
-                          group = circa_data$group,id = circa_data$id,period = 24,
+results <- mixedcirc_detect(data_input=data_input$b[, c("data_2_1","data_2_2","data_2_4"), drop=F], time = circa_data$time,
+                          group = circa_data$group, id = circa_data$id,period = 24,
                           verbose = FALSE)
-cowplot::plot_grid(plot(results[1]),plot(results[2]),plot(results[3]))
+cowplot::plot_grid(plot(results[1]), plot(results[2]), plot(results[3]))
 
 ```
 # Detrending and heatmap
 
 `mixedcirc` can also be used to remove linear trend in the data, making it easier to visualize the pattern using for example heatmaps.
 
-the function `mixedcirc_detrend` fits a linear trend to the fitted cosine model and return a matrix of de-trended data.
+the function `mixedcirc_detrend` fits a linear trend to the fitted cosine model and return a matrix of detrended data.
 
 Let's for the start plot the heatmap of the data:
 
@@ -188,32 +193,42 @@ Let's for the start plot the heatmap of the data:
 library(mixedcirc)
 data("circa_data")
 
-
-heatmap(t(circa_data$data_matrix[order(circa_data$group,circa_data$time),]),Rowv = NA,Colv = NA,
-        ColSideColors   = c("red","blue")[as.factor(circa_data$group[order(circa_data$group)])])
+my_data <- t(circa_data$data_matrix[order(circa_data$group, circa_data$time), ])
+my_colors <- c("red","blue")[as.factor(circa_data$group[order(circa_data$group)])]
+heatmap(x = my_data, 
+        Rowv = NA, 
+        Colv = NA,
+        ColSideColors = my_colors)
 
 ```
 
-The heatmpa already looks very good (simulated data of course!). Let's do the same thing after detrending
+The heatmap already looks very good (simulated data of course!). Let's do the same thing after de-trending.
 
 We first fit our model using our usual functions:
 
 ```{r,warning=FALSE,error=FALSE,message=FALSE}
 
-
-results<-mixedcirc_detect(data_input = circa_data$data_matrix,
-                          time = circa_data$time,group = circa_data$group,id = circa_data$id,period = 24,verbose = FALSE)
+results <- mixedcirc_detect(data_input = circa_data$data_matrix,
+                          time = circa_data$time,
+                          group = circa_data$group,
+                          id = circa_data$id,
+                          period = 24,
+                          verbose = FALSE)
 
 ```
 
 We can now do the detrending directly on the `results` object:
 
-```{r,warning=FALSE,error=FALSE,message=FALSE}
+```{r, warning=FALSE, error=FALSE, message=FALSE}
 
-detrended<-mixedcirc_detrend(results,per_group = FALSE,verbose = FALSE)
+detrended <- mixedcirc_detrend(results,per_group = FALSE,verbose = FALSE)
 
-heatmap(t(detrended[order(circa_data$group,circa_data$time),]),Rowv = NA,Colv = NA,
-        ColSideColors   = c("red","blue")[as.factor(circa_data$group[order(circa_data$group)])])
+my_data <- t(detrended[order(circa_data$group,circa_data$time),])
+my_colors <- c("red","blue")[as.factor(circa_data$group[order(circa_data$group)])]
+heatmap(x = my_data, 
+        Rowv = NA,
+        Colv = NA,
+        ColSideColors = my_colors)
 ```
 
 We can see that the trend is slightly more visible. In fact, by doing the de-trending, we can remove all the visual artifacts that can otherwise negatively impact the heatmap or similar visualization techniques.
