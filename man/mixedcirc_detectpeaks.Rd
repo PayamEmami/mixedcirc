@@ -15,19 +15,19 @@ mixedcirc_detectpeaks(
 \arguments{
 \item{phi}{phase of a peak}
 
-\item{period}{Period of circadian rhythm. Default: 24}
+\item{period}{period of circadian rhythm. Default: 24}
 
-\item{min_time}{Minimum time considered}
+\item{min_time}{minimum time considered}
 
-\item{correct_period}{If TRUE, period will be forced to be between the min and max time}
+\item{correct_period}{if TRUE, period will be forced to be between the min and max time}
 
 \item{correct_min}{minimum time will be adjusted}
 }
 \value{
-the peak time
+numeric - the peak time
 }
 \description{
-This functions finds peak of a rhythm
+This function finds peak of a rhythm
 }
 \details{
 
@@ -41,6 +41,6 @@ group = circa_data$group,
 id = circa_data$id,
 period = 24,
 verbose = TRUE)
-mixedcirc_detectpeaks(results[1][,5],min_time=0)
+mixedcirc_detectpeaks(results[1][,5], min_time = 0)
 
 }

@@ -3,11 +3,11 @@
 #' @slot results A one row data frame that contains statistics of fitted model
 #' @slot fit is the actual fitted model
 #' @slot exp_design is the experimental design file created by mixedcirc_detect
-#'
+#' @slot type represents the type of analysis done. E.g. RRBS etc
 mixedcirc_fit <- setClass("mixedcirc_fit",
                           slots = list(results = "data.frame",
                                        fit = "ANY",
-                                       exp_design = "data.frame")
+                                       exp_design = "data.frame",type="character")
 )
 
 #' Represents the result of model fitting on several variables.

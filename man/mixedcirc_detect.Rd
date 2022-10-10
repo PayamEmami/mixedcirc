@@ -14,6 +14,8 @@ mixedcirc_detect(
   f_test = c("multcomp_f", "multcomp_chi", "Satterthwaite", "Kenward-Roger")[3],
   abs_phase = TRUE,
   obs_weights = NULL,
+  RRBS = FALSE,
+  replicate_id = NULL,
   verbose = FALSE,
   ...
 )
@@ -37,6 +39,10 @@ mixedcirc_detect(
 
 \item{obs_weights}{Regression weights. Default: NULL. See details}
 
+\item{RRBS}{If `TRUE`, the data is assumed to be RRBS methylation data. if TRUE, obs_weights must be set. Default FALSE}
+
+\item{replicate_id}{If `RRBS` is set to `TRUE`, This has to be a factor showing identity of each unique replicate.}
+
 \item{verbose}{Show information about different stages of the processes. Default FALSE}
 
 \item{...}{additionl arguments to the regression function}
@@ -51,11 +57,20 @@ This functions performs differential circadian rhythm analysis using mixed model
 For each variable we use the following mode:
 In this part we do rhythmicity analysis on individual variables using the following model:
 measure ~0 + group + group:in + group:out
-Where `in` is defined as cos(2 \* pi \* time / period) and `out` as sin(2 \* pi \* exp_design$time / period).
+Where `in` is defined as cos(2 * pi * time / period) and `out` as sin(2 * pi * time / period).
 The global inference is tested on group:in == 0 or group:out == 0
 The between group difference is tested as differences between in and out across different groups. No p-value adjustment is performed!
 
 `obs_weights` is a matrix of size N*P where each colum shows the weights for all the observations for that particular variable.
+
+If `RRBS` is set to `TRUE`, we assume that the data is RRBS methylation. In this case, the regression will be change to suit this type of analysis.
+In BS-seq methylation analysis, each DNA sample generates two counts, a count of methylated reads and a count of unmethylated reads, for each genomic locus for each sample.
+The samples are assumed to be ordered as methylated and then unmethylated. For example, given the samples are A1_1, A1_2,A2_1, and B1_1.
+The rows in `data_input` are assumed to be ordered as  A1_1_methylated,A1_1_unmethylated, A1_2_methylated,A1_2_unmethylated,A2_1_methylated,A2_1_unmethylated,B1_1_methylated,B1_1_unmethylated.
+In this setting, `replicate_id` must show the unique identify of each replicate (in contrast to unique biological sample). This means for example above,
+`replicate_id` would be A1_1,A1_2,A2_1,B1_1.
+Please note that if `RRBS` is set to `TRUE`, `obs_weights` must be set. We provide a starting function to estimate these weights
+(\code{\link{mixedcirc_rrbs_voom}}) for class of `methylBaseDB` from `methylKit` package. Alternatively, one can use `voomWithDreamWeights` with correct formula.
 }
 \examples{
 data("circa_data")

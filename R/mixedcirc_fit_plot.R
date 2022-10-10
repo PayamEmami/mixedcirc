@@ -22,6 +22,9 @@
 #' @return
 #' A ggplot object.
 #'
+#' @details
+#' In case of RRBS, the data is assumed to be log2. The M-values are calculated as Mathylated-Unmethylated
+#'
 #' @import stats
 #' @import multcomp
 #' @import doFuture
@@ -51,7 +54,7 @@ mixedcirc_fit_plot<- function(x, period=24,
     plot_title<-rownames(object@results)
     if(is.null(plot_title)) { plot_title <- "Variable" }
   }
-
+  type_of_analysis<-object@type
   fit <- object@fit
   pr_rows <- c()
   if(class(fit) == "lm") {
@@ -65,7 +68,12 @@ mixedcirc_fit_plot<- function(x, period=24,
   to_be_predited <- c()
   if(is.null(min_time)) { min_time <- min(exp_design$time) }
   if(is.null(max_time)) { max_time <- max(exp_design$time) }
-
+  replicate_id<-NULL
+  if(type_of_analysis=="RRBS")
+  {
+    set.seed(1)
+    replicate_id<-sample(fit@frame$replicate_id,size = 1)
+  }
   for(i in 1:nrow(all_combs)) {
     gr<-as.character(all_combs[i,"group"])
 
@@ -75,7 +83,15 @@ mixedcirc_fit_plot<- function(x, period=24,
                           outphase = sin(2 * pi * timeax/period),
                           group=gr)
 
-    to_be_predited <- rbind(to_be_predited,newdata)
+    if(type_of_analysis=="RRBS")
+    {
+      newdata_1<-cbind(newdata,scaler=1,replicate_id=as.character(replicate_id))
+      newdata_2<-cbind(newdata,scaler=0,replicate_id=as.character(replicate_id))
+      to_be_predited <- rbind(to_be_predited,rbind(newdata_1,newdata_2))
+    }else{
+      to_be_predited <- rbind(to_be_predited,newdata)
+    }
+
   }
 
   to_be_predited$Y.hat <- predict(object = fit,
@@ -83,6 +99,12 @@ mixedcirc_fit_plot<- function(x, period=24,
                                   re.form=NA,
                                   level = 0)
 
+  if(type_of_analysis=="RRBS")
+  {
+    to_be_predited_2<-to_be_predited
+    to_be_predited<-to_be_predited[to_be_predited$scaler==1,]
+    to_be_predited$Y.hat<-to_be_predited_2$Y.hat[to_be_predited_2$scaler==1]-to_be_predited_2$Y.hat[to_be_predited_2$scaler==0]
+  }
   library(ggplot2)
   library(ggsci)
 
@@ -92,6 +114,13 @@ mixedcirc_fit_plot<- function(x, period=24,
     raw_data<-data.frame(measure=fit@frame[,"measure"],exp_design)
   }
   time <- raw_data$time
+
+  if(type_of_analysis=="RRBS")
+  {
+    raw_data_2<-raw_data
+    raw_data<-raw_data[raw_data$scaler==1,]
+    raw_data$measure<-raw_data_2[raw_data_2$scaler==1,]$measure-raw_data_2[raw_data_2$scaler==0,]$measure
+  }
 
   plot_tmp <- ggplot(data=raw_data,aes(x=time,y=measure,group=group,color=group,shape=group))
 

@@ -46,6 +46,9 @@ A ggplot object.
 \description{
 This functions plots circadian rhythm fitted using mixedcirc_detect function.
 }
+\details{
+In case of RRBS, the data is assumed to be log2. The M-values are calculated as Mathylated-Unmethylated
+}
 \examples{
 data("circa_data")
 

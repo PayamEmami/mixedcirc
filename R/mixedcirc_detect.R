@@ -11,6 +11,8 @@
 #' @param f_test Type of f-test for calculating p-value of the rhythm. Possible values are "multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger". Default: Satterthwaite
 #' @param abs_phase Whether to return absolute phase or not. Default: TRUE
 #' @param obs_weights Regression weights. Default: NULL. See details
+#' @param RRBS If `TRUE`, the data is assumed to be RRBS methylation data. if TRUE, obs_weights must be set. Default FALSE
+#' @param replicate_id If `RRBS` is set to `TRUE`, This has to be a factor showing identity of each unique replicate.
 #' @param verbose Show information about different stages of the processes. Default FALSE
 #' @param ... additionl arguments to the regression function
 #' @export
@@ -27,11 +29,22 @@
 #' For each variable we use the following mode:
 #' In this part we do rhythmicity analysis on individual variables using the following model:
 #' measure ~0 + group + group:in + group:out
-#' Where `in` is defined as cos(2 \* pi \* time / period) and `out` as sin(2 \* pi \* exp_design$time / period).
+#' Where `in` is defined as cos(2 * pi * time / period) and `out` as sin(2 * pi * time / period).
 #' The global inference is tested on group:in == 0 or group:out == 0
 #' The between group difference is tested as differences between in and out across different groups. No p-value adjustment is performed!
 #'
 #' `obs_weights` is a matrix of size N*P where each colum shows the weights for all the observations for that particular variable.
+#'
+#' If `RRBS` is set to `TRUE`, we assume that the data is RRBS methylation. In this case, the regression will be change to suit this type of analysis.
+#' In BS-seq methylation analysis, each DNA sample generates two counts, a count of methylated reads and a count of unmethylated reads, for each genomic locus for each sample.
+#' The samples are assumed to be ordered as methylated and then unmethylated. For example, given the samples are A1_1, A1_2,A2_1, and B1_1.
+#' The rows in `data_input` are assumed to be ordered as  A1_1_methylated,A1_1_unmethylated, A1_2_methylated,A1_2_unmethylated,A2_1_methylated,A2_1_unmethylated,B1_1_methylated,B1_1_unmethylated.
+#' In this setting, `replicate_id` must show the unique identify of each replicate (in contrast to unique biological sample). This means for example above,
+#' `replicate_id` would be A1_1,A1_2,A2_1,B1_1.
+#' Please note that if `RRBS` is set to `TRUE`, `obs_weights` must be set. We provide a starting function to estimate these weights
+#' (\code{\link{mixedcirc_rrbs_voom}}) for class of `methylBaseDB` from `methylKit` package. Alternatively, one can use `voomWithDreamWeights` with correct formula.
+#'
+#'
 #'
 #' @import stats
 #' @import multcomp
@@ -45,14 +58,25 @@
 #' @import foreach
 #' @import variancePartition
 
-
-
 mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
-                                    period=24,lm_method=c("lm","lme")[2],
-                                    f_test=c("multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger")[3],
-                                    abs_phase=TRUE,obs_weights=NULL,verbose=FALSE,...){
+                             period=24,lm_method=c("lm","lme")[2],
+                             f_test=c("multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger")[3],
+                             abs_phase=TRUE,obs_weights=NULL,RRBS=FALSE,replicate_id=NULL,verbose=FALSE,...){
   doFuture::registerDoFuture()
   future::plan(future::multisession)
+
+  if(RRBS==TRUE)
+  {
+    if(is.null(obs_weights))
+    {
+      stop("For RRBS data, obs_weights must be set")
+    }
+    if(is.null(replicate_id))
+    {
+      stop("For RRBS data, replicate_id must be set")
+    }
+
+  }
 
   if(verbose)cat("Checking inputs ...\n")
   # checking inputs
@@ -64,6 +88,17 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
   if(is.null(time))
     stop("time must be a vector")
+
+  if(RRBS==TRUE)
+  {
+    if(length(time)!=length(replicate_id))
+    {
+      stop("time must have the same length as replicate_id")
+    }
+    time <- rep(time,each=2)
+  }
+
+
 
   if(!is(data_input,"DGEList"))
   {
@@ -77,6 +112,16 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
   if(!is.null(group))
   {
+
+    if(RRBS==TRUE)
+    {
+      if(length(group)!=length(replicate_id))
+      {
+        stop("time must have the same length as replicate_id")
+      }
+      group <- rep(group,each=2)
+    }
+
 
     if(!is(data_input,"DGEList"))
     {
@@ -101,6 +146,15 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
   if(!is.null(id))
   {
+    if(RRBS==TRUE)
+    {
+      if(length(id)!=length(replicate_id))
+      {
+        stop("time must have the same length as replicate_id")
+      }
+      id <- rep(id,each=2)
+    }
+
     if(!is(data_input,"DGEList"))
     {
       if(length(id)!=nrow(data_input))
@@ -124,12 +178,20 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
   f_test <- match.arg(f_test,c("multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger"))
 
   if(!is(data_input,"DGEList"))
-  eset <- data_input[,,drop=F]
+    eset <- data_input[,,drop=F]
   else
     eset <- NA
 
+
   if(verbose)cat("Building experiment ...\n")
-  exp_design<-cbind.data.frame(time=as.numeric(time),group=as.factor(group),rep=as.character(id))
+  if(RRBS==TRUE)
+  {
+    exp_design<-cbind.data.frame(time=as.numeric(time),group=as.factor(group),rep=as.character(id),
+                                 replicate_id=rep(replicate_id,each=2),scaler=rep(c(1,0),(length(id)/2)))
+  }else{
+    exp_design<-cbind.data.frame(time=as.numeric(time),group=as.factor(group),rep=as.character(id))
+  }
+
 
   if(!is.factor(exp_design$group))stop("Group must be a factor!")
 
@@ -151,21 +213,26 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
                               inphase = cos(2 * pi * exp_design$time / period),
                               outphase = sin(2 * pi * exp_design$time / period))
 
-    if ("batch" %in% colnames(exp_design)) {
 
-      design <- stats::model.matrix(~0 + group + group:inphase + group:outphase + batch,
+    if(RRBS==TRUE)
+    {
+
+      design <- stats::model.matrix(~0+ replicate_id+ group:scaler + group:inphase:scaler + group:outphase:scaler,
                                     data = exp_design)
 
-      design_s <- stats::model.matrix(~0 +  inphase + outphase,
+      design_s <- stats::model.matrix(~0 +replicate_id+  inphase:scaler + outphase:scaler,
                                       data = exp_design)
 
-    } else {
+    }else{
 
       design <- stats::model.matrix(~0 + group + group:inphase + group:outphase,
                                     data = exp_design)
+
       design_s <- stats::model.matrix(~0 +  inphase + outphase,
                                       data = exp_design)
     }
+
+
 
     design_t<-design
 
@@ -180,7 +247,14 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
         if(verbose)cat("lm_method is lm, voom will be used ...\n")
         voom_res<-limma::voom(data_input, design, plot=FALSE)
       }else{
-        formula<-~ 0 + group + group:inphase + group:outphase+(1 | rep)
+        if(RRBS==TRUE)
+        {
+
+          formula<-~ 0+replicate_id + group:scaler + group:inphase:scaler + group:outphase:scaler+(1 | rep)
+        }else{
+          formula<-~ 0 + group + group:inphase + group:outphase+(1 | rep)
+        }
+
         voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design)
       }
       obs_weights <-t(voom_res$weights)
@@ -194,9 +268,19 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       data_grouped<-cbind(measure=as.numeric(eset[,i]),exp_design)
 
       if(verbose)cat("Fitting the model for variable",i,"...\n")
-      model_ln<-switch(lm_method,
-                       lm = lm(measure ~0 + group + group:inphase + group:outphase ,data=data_grouped,weights = obs_weights[,i],...),
-                       lme = lme4::lmer(measure~ 0 + group + group:inphase + group:outphase+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
+      if(RRBS==TRUE)
+      {
+
+        model_ln<-switch(lm_method,
+                         lm = lm(measure ~0 +replicate_id+ group:scaler + group:inphase:scaler + group:outphase:scaler ,data=data_grouped,weights = obs_weights[,i],...),
+                         lme = lme4::lmer(measure~ 0 +replicate_id+ group:scaler + group:inphase:scaler + group:outphase:scaler+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
+
+      }else{
+        model_ln<-switch(lm_method,
+                         lm = lm(measure ~0 + group + group:inphase + group:outphase ,data=data_grouped,weights = obs_weights[,i],...),
+                         lme = lme4::lmer(measure~ 0 + group + group:inphase + group:outphase+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
+
+      }
 
       if(verbose)cat("Performing f-test for variable",i,"...\n")
       ## calculate f-test
@@ -204,7 +288,8 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       colnames(cof)<-rownames(cof)<-c(colnames(design_t))
 
       conts<-c()
-      for(x in colnames(cof)[grep("phase", colnames(cof))])conts<-c(conts,paste(x," == 0",sep = ""))
+      for(x in colnames(cof)[grep("phase", colnames(cof))])conts<-c(conts,paste(add_sym(x)," == 0",sep = ""))
+
 
       g <- multcomp::glht(model_ln, linfct = conts)
 
@@ -227,15 +312,25 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
       # single_rhythm A
 
-      model_ln_A<-switch(lm_method,
-                         lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
-                         lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
+      if(RRBS==TRUE)
+      {
+
+        model_ln_A<-switch(lm_method,
+                           lm = lm(measure ~0 +replicate_id+ inphase:scaler + outphase:scaler ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
+                           lme = lme4::lmer(measure~ 0 +replicate_id+ inphase:scaler + outphase:scaler+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
+
+      }else{
+        model_ln_A<-switch(lm_method,
+                           lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
+                           lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
+
+      }
 
       cof_s<-matrix(0,nrow = ncol(design_s),ncol = ncol(design_s))
       colnames(cof_s)<-rownames(cof_s)<-c(colnames(design_s))
 
       conts_g<-c()
-      for(x in colnames(cof_s)[grep("phase", colnames(cof_s))])conts_g<-c(conts_g,paste(x," == 0",sep = ""))
+      for(x in colnames(cof_s)[grep("phase", colnames(cof_s))])conts_g<-c(conts_g,paste(add_sym(x)," == 0",sep = ""))
 
       g <- multcomp::glht(model_ln_A, linfct = conts_g)
 
@@ -257,9 +352,19 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
 
       # single_rhythm B
-      model_ln_B<-switch(lm_method,
-                         lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
-                         lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
+      if(RRBS==TRUE)
+      {
+
+        model_ln_B<-switch(lm_method,
+                           lm = lm(measure ~0+replicate_id + inphase:scaler + outphase:scaler ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
+                           lme = lme4::lmer(measure~ 0+replicate_id + inphase:scaler + outphase:scaler+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
+
+      }else{
+        model_ln_B<-switch(lm_method,
+                           lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
+                           lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
+
+      }
 
 
       g <- multcomp::glht(model_ln_B, linfct = conts_g)
@@ -281,15 +386,18 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       f_p_value_B<-f_test_results$test$pvalue
 
 
-      ## prepare for contrast
+      ## prepare contrasts
+      contrasts<-c(
+        paste0(add_sym(colnames(design_t)[grepl(pattern = "inphase",x = colnames(design_t))&grepl(pattern = group_id[1],x = colnames(design_t))]),"-",
+               add_sym(colnames(design_t)[grepl(pattern = "inphase",x = colnames(design_t))&grepl(pattern = group_id[2],x = colnames(design_t))]),
+               "==0"),
+        paste0(add_sym(colnames(design_t)[grepl(pattern = "outphase",x = colnames(design_t))&grepl(pattern = group_id[1],x = colnames(design_t))]),"-",
+               add_sym(colnames(design_t)[grepl(pattern = "outphase",x = colnames(design_t))&grepl(pattern = group_id[2],x = colnames(design_t))]),
+               "==0"))
 
-      contrasts <- c(paste0(group_id, "_inphase", collapse = "-"),
-                     paste0(group_id, "_outphase", collapse = "-"))
 
-      diff_rhy_contrast <- limma::makeContrasts(contrasts = contrasts,
-                                                levels = design)
 
-      g_diff <- multcomp::glht(model_ln, linfct = t(diff_rhy_contrast))
+      g_diff <- multcomp::glht(model_ln, linfct =contrasts)
 
       f_test_results_diff<-NULL
       if(f_test=="chi")
@@ -310,7 +418,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
       # extract coeffcients
       if(verbose)cat("Extracting and estimating coefficients",i,"...\n")
-      ext_cof<-cof
+      ext_cof<-g_diff$linfct
       diag(ext_cof)<-1
       g_coef <- multcomp::glht(model_ln, linfct = ext_cof)
       coeffs<-g_coef$coef
@@ -319,9 +427,11 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       names(coeffs) <- gsub(":", "_", names(coeffs))
 
 
+
+
       if (any(base::grepl(paste0(group_id[1], "_"), names(coeffs)))) {
-        rhy_params <- coeffs[, base::paste(group_id[1], c("inphase",
-                                                          "outphase"), sep = "_")]
+        rhy_params <- coeffs[, base::paste(group_id[1], c(ifelse(RRBS,yes = "scaler_inphase",no = "inphase"),
+                                                          ifelse(RRBS,yes = "scaler_outphase",no = "outphase")), sep = "_")]
         mesor_A<-coeffs[,1]
         if(back_transform_method=="compareRhythms")
         {
@@ -387,8 +497,9 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
         phases_A <- 0
       }
       if (any(base::grepl(paste0(group_id[2], "_"), colnames(coeffs)))) {
-        rhy_params <- coeffs[, base::paste(group_id[2], c("inphase",
-                                                          "outphase"), sep = "_")]
+        rhy_params <- coeffs[, base::paste(group_id[2], c(ifelse(RRBS,yes = "scaler_inphase",no = "inphase"),
+                                                          ifelse(RRBS,yes = "scaler_outphase",no = "outphase")), sep = "_")]
+
 
         mesor_B<-coeffs[,2]
         if(back_transform_method=="compareRhythms")
@@ -457,8 +568,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       colnames(dt_out)<-gsub(pattern = "_B",replacement = paste("_",group_id[2],sep = ""),x = colnames(dt_out),fixed = T)
       if(verbose)cat("Variable",i,"finished\n")
       #list(results=dt_out,fit=model_ln,exp_design=exp_design)
-      new("mixedcirc_fit",results = dt_out,fit=model_ln,exp_design=exp_design)
-
+      new("mixedcirc_fit",results = dt_out,fit=model_ln,exp_design=exp_design,type=ifelse(RRBS,yes="RRBS",no = "expression"))
     }
     future:::ClusterRegistry("stop")
     res_tmp<-new("mixedcirc_fit_list",results = res)
@@ -473,15 +583,25 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
                               inphase = cos(2 * pi * exp_design$time / period),
                               outphase = sin(2 * pi * exp_design$time / period))
 
-    if ("batch" %in% colnames(exp_design)) {
 
-      design <- stats::model.matrix(~0 + inphase + outphase,
-                                    data = exp_design)
-    } else {
+    if(RRBS==TRUE)
+    {
 
-      design <- stats::model.matrix(~0 + inphase + outphase,
+      design <- stats::model.matrix(~0+ replicate_id + inphase:scaler + outphase:scaler,
                                     data = exp_design)
+
+      design_s <- stats::model.matrix(~0 +replicate_id+  inphase:scaler + outphase:scaler,
+                                      data = exp_design)
+
+    }else{
+
+      design <- stats::model.matrix(~0 + group + inphase + outphase,
+                                    data = exp_design)
+
+      design_s <- stats::model.matrix(~0 +  inphase + outphase,
+                                      data = exp_design)
     }
+
 
     design_t<-design
 
@@ -495,7 +615,16 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
         if(verbose)cat("lm_method is lm, voom will be used ...\n")
         voom_res<-limma::voom(data_input, design, plot=FALSE)
       }else{
-        formula<-~ 0 + inphase + outphase+(1 | rep)
+
+        if(RRBS==TRUE)
+        {
+
+          formula<-~ 0+replicate_id  + inphase:scaler + outphase:scaler+(1 | rep)
+        }else{
+          formula<-~ 0 + inphase + outphase+(1 | rep)
+        }
+
+
         voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design)
       }
       obs_weights <-t(voom_res$weights)
@@ -511,6 +640,21 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       model_ln<-switch(lm_method,
                        lm = lm(measure ~  inphase + outphase ,data=data_grouped,weights = obs_weights[,i],...),
                        lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
+
+
+      if(RRBS==TRUE)
+      {
+
+        model_ln<-switch(lm_method,
+                         lm = lm(measure ~0 +replicate_id+ scaler + inphase:scaler +outphase:scaler ,data=data_grouped,weights = obs_weights[,i],...),
+                         lme = lme4::lmer(measure~ 0 +replicate_id +inphase:scaler + outphase:scaler+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
+
+      }else{
+        model_ln<-switch(lm_method,
+                         lm = lm(measure ~0 + inphase + outphase ,data=data_grouped,weights = obs_weights[,i],...),
+                         lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
+
+      }
 
       if(verbose)cat("Calculating f-test for variable",i,"...\n")
       ## calculate f-test
@@ -554,7 +698,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       if (all(base::is.element(c("inphase", "outphase"), colnames(coeffs)))) {
 
 
-        rhy_params <- coeffs[, c("inphase", "outphase")]
+        rhy_params <- coeffs[, c(ifelse(RRBS,yes = "scaler_inphase",no = "inphase"), ifelse(RRBS,yes = "scaler_outphase",no = "outphase"))]
         amps <- 2 * sqrt(base::rowSums(rhy_params^2))
         phases <- base::atan2(rhy_params[, 2], rhy_params[, 1])%%(2 *
                                                                     pi)
@@ -604,7 +748,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
       if(verbose)cat("Variable ",i," finished...\n")
       #list(results=dt_out,fit=model_ln,exp_design=exp_design)
-      new("mixedcirc_fit",results = dt_out,fit=model_ln,exp_design=exp_design)
+      new("mixedcirc_fit",results = dt_out,fit=model_ln,exp_design=exp_design,type=ifelse(RRBS,yes="RRBS",no = "expression"))
 
     }
     future:::ClusterRegistry("stop")
@@ -614,3 +758,6 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
   }
 
 }
+
+
+
