@@ -6,6 +6,7 @@
 #' @param formula specifies variables for the linear (mixed) model. Must only specify covariates, e.g.: ~ a + b + (1|c). Formulas with only fixed effects also work, and fit() is run.
 #' @param data data.frame with columns corresponding to formula
 #' @param lib.size numeric vector containing total library sizes for each sample. This will be estimated based on RRBS data
+#' @param chunk.size the number of chunk to retrieve from the data at the same time
 #' @param span width of the lowess smoothing window as a proportion.
 #' @param plot logical, should a plot of the mean-variance trend be displayed?
 #' @param save.plot logical, should the coordinates and line of the plot be saved in the output?
@@ -48,9 +49,9 @@
 
 
 
-mixedcirc_rrbs_voom<-function (counts, formula, data, lib.size = NULL,
-                                        span = 0.5, plot = FALSE, save.plot = FALSE, quiet = FALSE,
-                                        BPPARAM = bpparam(), ...)
+mixedcirc_rrbs_voom<-function (counts, formula, data, lib.size = NULL,chunk.size=100,
+                               span = 0.5, plot = FALSE, save.plot = FALSE, quiet = FALSE,
+                               BPPARAM = bpparam(), ...)
 {
 
 
@@ -77,7 +78,6 @@ mixedcirc_rrbs_voom<-function (counts, formula, data, lib.size = NULL,
 
     # double the library one for meth and unmeth
     lib.size <- rep(lib.size,each=2)
-
   }
 
   ## do y transformation
@@ -109,15 +109,13 @@ mixedcirc_rrbs_voom<-function (counts, formula, data, lib.size = NULL,
   y<-methylKit:::applyTbxByChunk(tbxFile = tbxFile_t,tabixHead = tabixHeadString,
                                  chunk.size = chunk.size,return.type = "tabix",dir = dir_for_file,filename = file_name,
                                  FUN = function(x){
-                                   xx<-x[,selec_sm,drop=F];
+
+                                   xx<-x[,-c(1:4,counts@coverage.index),drop=F];
                                    xx_res<-x;
                                    x2<-x;
                                    xx<-t(log2(t(xx + 0.5)/(lib.size + 1) * 1e+06));
-                                   xx_res[,selec_sm]<-
+                                   xx_res[,-c(1:4,counts@coverage.index)]<-
                                      xx;
-                                   print(dim(xx_res))
-                                   print(dim(x))
-                                   print("---")
                                    xx_res
                                  })
 
@@ -168,7 +166,7 @@ mixedcirc_rrbs_voom<-function (counts, formula, data, lib.size = NULL,
     y<-methylKit:::applyTbxByChunk(tbxFile = tbxFile_t,tabixHead = tabixHeadString,
                                    chunk.size = chunk.size,return.type = "tabix",dir = dir_for_file,filename = file_name,
                                    FUN = function(x){
-                                     xx<-x[,selec_sm,drop=F];
+                                     xx<-x[,-c(1:4,counts@coverage.index),drop=F];
                                      Ameans<-rowMeans(xx,na.rm = TRUE)[,drop=F]
 
 
@@ -182,7 +180,7 @@ mixedcirc_rrbs_voom<-function (counts, formula, data, lib.size = NULL,
                                      fit = list()
                                      fit$sigma <- sapply(vpList, function(x) x$sd)
                                      fit$df.residual = rep(2, length(fit$sigma))
-                                     xx_res[,selec_sm]<-fitted.values;
+                                     xx_res[,-c(1:4,counts@coverage.index)]<-fitted.values;
                                      cbind(xx_res,fit$sigma,fit$sigma,fit$sigma,fit$df.residual,fit$df.residual,fit$df.residual,
                                            Ameans,Ameans,Ameans)
 
@@ -212,7 +210,7 @@ mixedcirc_rrbs_voom<-function (counts, formula, data, lib.size = NULL,
 
     sx <- sig_ameans[,2] + mean(log2(lib.size + 1)) - log2(1e+06)
 
-    sy <- sqrt(sig_ameans[,2])
+    sy <- sqrt(sig_ameans[,1])
 
     allzero <- sig_ameans[,3] == 0
     if (any(allzero)) {
@@ -251,14 +249,14 @@ mixedcirc_rrbs_voom<-function (counts, formula, data, lib.size = NULL,
                                               chunk.size = chunk.size,return.type = "tabix",dir = dir_for_file,filename = file_name,
                                               FUN = function(x){
 
-                                                fitted.cpm<-2^x[,c(y_norm@numCs.index[!y_norm@sample.ids%in%c("sigma"  ,   "resid"    , "Ameans")],
-                                                                   y_norm@numTs.index[!y_norm@sample.ids%in%c("sigma"  ,   "resid"    , "Ameans" )])]
+                                                fitted.cpm<-2^x[,-c(1:4,y_norm@coverage.index,y_norm@numCs.index[y_norm@sample.ids%in%c("sigma"  ,   "resid"    , "Ameans")],
+                                                                    y_norm@numTs.index[y_norm@sample.ids%in%c("sigma"  ,   "resid"    , "Ameans" )])]
                                                 fitted.count <- 1e-06 * t(t(fitted.cpm) * (lib.size + 1))
                                                 fitted.logcount <- log2(fitted.count)
                                                 w <- 1/f(fitted.logcount)^4
                                                 dim(w) <- dim(fitted.logcount)
-                                                x[,c(y_norm@numCs.index[!y_norm@sample.ids%in%c("sigma"  ,   "resid"    , "Ameans")],
-                                                     y_norm@numTs.index[!y_norm@sample.ids%in%c("sigma"  ,   "resid"    , "Ameans" )])]<-w
+                                                x[,-c(1:4,y_norm@coverage.index,y_norm@numCs.index[y_norm@sample.ids%in%c("sigma"  ,   "resid"    , "Ameans")],
+                                                      y_norm@numTs.index[y_norm@sample.ids%in%c("sigma"  ,   "resid"    , "Ameans" )])]<-w
                                                 x[,-c(y_norm@numCs.index[y_norm@sample.ids%in%c("sigma"  ,   "resid"    , "Ameans")],
                                                       y_norm@numTs.index[y_norm@sample.ids%in%c("sigma"  ,   "resid"    , "Ameans" )],
                                                       y_norm@coverage.index[y_norm@sample.ids%in%c("sigma"  ,   "resid"    , "Ameans")])]
@@ -291,7 +289,7 @@ mixedcirc_rrbs_voom<-function (counts, formula, data, lib.size = NULL,
                                            context = counts@context,
                                            treatment = slotList$treatment,destranded = F)
 
-    return(list(E=y_norm,W=weights_final))
+    return(list(E=y_norm,weights=weights_final))
 
   }
 
