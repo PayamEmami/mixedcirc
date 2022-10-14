@@ -400,10 +400,10 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       g_diff <- multcomp::glht(model_ln, linfct =contrasts)
 
       f_test_results_diff<-NULL
-      if(f_test=="chi")
+      if(f_test=="multcomp_chi")
       {
         f_test_results_diff<-multcomp:::summary.glht(g_diff, test = Chisqtest())
-      }else if(f_test == "f")
+      }else if(f_test == "multcomp_f")
       {
         f_test_results_diff<-multcomp:::summary.glht(g_diff, test = Ftest())
       }else if(f_test%in%c("Satterthwaite", "Kenward-Roger"))
