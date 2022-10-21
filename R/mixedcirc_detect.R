@@ -203,6 +203,13 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
   }
 
   back_transform_method <- "card"
+
+  if(f_test%in%c("Satterthwaite", "Kenward-Roger") & lm_method=="lm")
+  {
+    stop("Datasets without hierarchical structures do not work with Satterthwaite and Kenward-Roger! Change f_test to multcomp_f or multcomp_chi!")
+  }
+
+
   if(multiple_groups==TRUE)
   {
     if(verbose)cat("Performing multigroup inference ...\n")
@@ -595,7 +602,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
     }else{
 
-      design <- stats::model.matrix(~0 + group + inphase + outphase,
+      design <- stats::model.matrix(~0 + inphase + outphase,
                                     data = exp_design)
 
       design_s <- stats::model.matrix(~0 +  inphase + outphase,

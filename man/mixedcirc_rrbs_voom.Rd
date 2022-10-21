@@ -9,6 +9,7 @@ mixedcirc_rrbs_voom(
   formula,
   data,
   lib.size = NULL,
+  chunk.size = 100,
   span = 0.5,
   plot = FALSE,
   save.plot = FALSE,
@@ -25,6 +26,8 @@ mixedcirc_rrbs_voom(
 \item{data}{data.frame with columns corresponding to formula}
 
 \item{lib.size}{numeric vector containing total library sizes for each sample. This will be estimated based on RRBS data}
+
+\item{chunk.size}{the number of chunk to retrieve from the data at the same time}
 
 \item{span}{width of the lowess smoothing window as a proportion.}
 

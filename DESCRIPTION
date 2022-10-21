@@ -18,6 +18,7 @@ Depends:
     future,
     nlme,
     future.apply,
+    funtimes,
     lme4,
     lmerTest,
     limma,
