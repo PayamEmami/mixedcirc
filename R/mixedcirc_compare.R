@@ -129,13 +129,13 @@ mixedcirc_compare<- function(x,y,type=c( "original", "fitted", "simulate")[1],me
     exp_design <- object2@exp_design[rownames(object2@exp_design)%in%pr_rows,]
     if(class(fit) == "lm" & type_cff=="original") {
       raw_data<-data.frame(measure=fit$model[,"measure"],exp_design)
-    } else {
+    } else if( type_cff=="original"){
       raw_data<-data.frame(measure=fit@frame[,"measure"],exp_design)
     }
 
     if(class(fit) == "lm"& type_cff=="fitted") {
       raw_data<-data.frame(measure=fitted(fit),exp_design)
-    } else {
+    } else if( type_cff=="fitted"){
       raw_data<-data.frame(measure=fitted(fit),exp_design)
     }
 
