@@ -61,6 +61,7 @@ this means that `data` must contain replicate_id, scaler, in and out.
 `group` is an optional (if differential rhythm analysis is done) two level factor that shows the grouping of the samples.
 If constructed correctly, the output of the function will be a list of two elemens (methylBaseDB) which can be used to extract the transformed methylated/unmethylated as well as the weights.
 The reason for this function is to solve the problem with high memory demand of RRBS data. If you have just a few loci, use can use `voomWithDreamWeights` or `voom` essentially using the same setup.
+By default NAs are imputed by zero.
 }
 \examples{
 

@@ -41,6 +41,7 @@ mixedcirc_compare(
 \value{
 A list containing:
 A ggplot object.
+A statistical components of cross correlation.
 }
 \description{
 This functions compare two circadian rhythm fitted using mixedcirc_detect function using cross-correlation.

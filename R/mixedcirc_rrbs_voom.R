@@ -33,7 +33,7 @@
 #' `group` is an optional (if differential rhythm analysis is done) two level factor that shows the grouping of the samples.
 #' If constructed correctly, the output of the function will be a list of two elemens (methylBaseDB) which can be used to extract the transformed methylated/unmethylated as well as the weights.
 #' The reason for this function is to solve the problem with high memory demand of RRBS data. If you have just a few loci, use can use `voomWithDreamWeights` or `voom` essentially using the same setup.
-#'
+#' By default NAs are imputed by zero.
 #'
 #' @import stats
 #' @import multcomp
@@ -111,6 +111,7 @@ mixedcirc_rrbs_voom<-function (counts, formula, data, lib.size = NULL,chunk.size
                                  FUN = function(x){
 
                                    xx<-x[,-c(1:4,counts@coverage.index),drop=F];
+                                   xx[is.na(xx)]<-0
                                    xx_res<-x;
                                    x2<-x;
                                    xx<-t(log2(t(xx + 0.5)/(lib.size + 1) * 1e+06));
