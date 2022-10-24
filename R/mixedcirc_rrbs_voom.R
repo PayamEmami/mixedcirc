@@ -66,6 +66,7 @@ mixedcirc_rrbs_voom<-function (counts, formula, data, lib.size = NULL,chunk.size
     tbxFile_t<-methylKit::getDBPath(counts)
     lib.size_partial<-methylKit:::applyTbxByChunk(tbxFile = tbxFile_t,
                                                   chunk.size = chunk.size,return.type = "data.frame",FUN = function(x){
+                                                    x[is.na(x)]<-0
 
 
                                                     as.data.frame(t(colSums(x[,counts@coverage.index])))[,,drop=F]
