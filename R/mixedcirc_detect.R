@@ -296,16 +296,17 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       if(verbose)cat("Fitting the model for variable",i,"...\n")
       if(RRBS==TRUE)
       {
-
+        suppressMessages({
         model_ln<-switch(lm_method,
                          lm = lm(measure ~0 +replicate_id+ group:scaler + group:inphase:scaler + group:outphase:scaler ,data=data_grouped,weights = obs_weights[,i],...),
                          lme = lme4::lmer(measure~ 0 +replicate_id+ group:scaler + group:inphase:scaler + group:outphase:scaler+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
-
+})
       }else{
+        suppressMessages({
         model_ln<-switch(lm_method,
                          lm = lm(measure ~0 + group + group:inphase + group:outphase ,data=data_grouped,weights = obs_weights[,i],...),
                          lme = lme4::lmer(measure~ 0 + group + group:inphase + group:outphase+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
-
+})
       }
 
       if(verbose)cat("Performing f-test for variable",i,"...\n")
@@ -341,19 +342,20 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
         # single_rhythm A
         if(RRBS==TRUE)
         {
-
+          suppressMessages({
           model_ln_A<-switch(lm_method,
                              lm = lm(measure ~0 +replicate_id+ inphase:scaler + outphase:scaler ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
                              lme = lmerTest::lmer(measure~ 0 +replicate_id+ inphase:scaler + outphase:scaler+(1 | rep) ,
                                                   control = lmerControl(calc.derivs = FALSE,optimizer="bobyqa",optCtrl=list(maxfun=2e4)),
                                                   data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
-
+})
         }else{
+          suppressMessages({
           model_ln_A<-switch(lm_method,
                              lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
                              lme = lmerTest::lmer(measure~ 0 + inphase + outphase+(1 | rep) , control = lmerControl(calc.derivs = FALSE,optimizer="bobyqa",optCtrl=list(maxfun=2e4)),
                                                   data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
-
+})
         }
 
         cof_s<-matrix(0,nrow = ncol(design_s),ncol = ncol(design_s))
@@ -384,18 +386,19 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
         # single_rhythm B
         if(RRBS==TRUE)
         {
-
+          suppressMessages({
           model_ln_B<-switch(lm_method,
                              lm = lm(measure ~0+replicate_id + inphase:scaler + outphase:scaler ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
                              lme = lmerTest::lmer(measure~ 0+replicate_id + inphase:scaler + outphase:scaler+(1 | rep),
                                                   control = lmerControl(calc.derivs = FALSE,optimizer="bobyqa",optCtrl=list(maxfun=2e4)),data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
-
+})
         }else{
+          suppressMessages({
           model_ln_B<-switch(lm_method,
                              lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
                              lme = lmerTest::lmer(measure~ 0 + inphase + outphase+(1 | rep),
                                                   control = lmerControl(calc.derivs = FALSE,optimizer="bobyqa",optCtrl=list(maxfun=2e4)),data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
-
+})
         }
 
 
@@ -743,23 +746,25 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
       data_grouped<-cbind(measure=as.numeric(eset[,i]),exp_design)
       if(verbose)cat("Fitting the model for variable",i,"...\n")
+      suppressMessages({
       model_ln<-switch(lm_method,
                        lm = lm(measure ~  inphase + outphase ,data=data_grouped,weights = obs_weights[,i],...),
                        lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
-
+})
 
       if(RRBS==TRUE)
       {
-
+        suppressMessages({
         model_ln<-switch(lm_method,
                          lm = lm(measure ~0 +replicate_id+ scaler + inphase:scaler +outphase:scaler ,data=data_grouped,weights = obs_weights[,i],...),
                          lme = lme4::lmer(measure~ 0 +replicate_id +inphase:scaler + outphase:scaler+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
-
+})
       }else{
+        suppressMessages({
         model_ln<-switch(lm_method,
                          lm = lm(measure ~0 + inphase + outphase ,data=data_grouped,weights = obs_weights[,i],...),
                          lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
-
+})
       }
 
       if(verbose)cat("Calculating f-test for variable",i,"...\n")
