@@ -406,7 +406,8 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
         colnames(cof_s)<-rownames(cof_s)<-c(colnames(design_s))
         conts_g<-c()
         for(x in colnames(cof_s)[grep("phase", colnames(cof_s))])conts_g<-c(conts_g,paste(add_sym(x)," == 0",sep = ""))
-        conts<-conts[grepl(paste0(group_id[1],":"),x = conts,fixed = T)]
+
+        conts_g<-conts[grepl(paste0(group_id[1],":"),x = conts,fixed = T)]
 
         g <- multcomp::glht(model_ln_A, linfct = conts_g)
 
@@ -436,7 +437,9 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
         conts_g<-c()
         for(x in colnames(cof_s)[grep("phase", colnames(cof_s))])conts_g<-c(conts_g,paste(add_sym(x)," == 0",sep = ""))
-        conts_g<-conts[grepl(paste0(group_id[2],":"),x = conts_g,fixed = T)]
+
+        conts_g<-conts[grepl(paste0(group_id[2],":"),x = conts,fixed = T)]
+
 
 
         g <- multcomp::glht(model_ln_B, linfct = conts_g)
