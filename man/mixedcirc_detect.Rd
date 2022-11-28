@@ -17,6 +17,7 @@ mixedcirc_detect(
   RRBS = FALSE,
   replicate_id = NULL,
   separate_tests = TRUE,
+  ncores = 1,
   verbose = FALSE,
   ...
 )
@@ -45,6 +46,8 @@ mixedcirc_detect(
 \item{replicate_id}{If `RRBS` is set to `TRUE`, This has to be a factor showing identity of each unique replicate.}
 
 \item{separate_tests}{If TRUE (defualt), separate models will be fit for each group to estimate rhythmicity otherwise, groupwise rhythmicity will be based on the a global model.}
+
+\item{ncores}{number of cores}
 
 \item{verbose}{Show information about different stages of the processes. Default FALSE}
 

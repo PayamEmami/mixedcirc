@@ -14,6 +14,7 @@
 #' @param RRBS If `TRUE`, the data is assumed to be RRBS methylation data. if TRUE, obs_weights must be set. Default FALSE
 #' @param replicate_id If `RRBS` is set to `TRUE`, This has to be a factor showing identity of each unique replicate.
 #' @param separate_tests If TRUE (defualt), separate models will be fit for each group to estimate rhythmicity otherwise, groupwise rhythmicity will be based on the a global model.
+#' @param ncores number of cores
 #' @param verbose Show information about different stages of the processes. Default FALSE
 #' @param ... additionl arguments to the regression function
 #' @export
@@ -58,11 +59,22 @@
 #' @import lmerTest
 #' @import foreach
 #' @import variancePartition
+#' @import parallel
 
 mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
                              period=24,lm_method=c("lm","lme")[2],
                              f_test=c("multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger")[3],
-                             abs_phase=TRUE,obs_weights=NULL,RRBS=FALSE,replicate_id=NULL,separate_tests=TRUE,verbose=FALSE,...){
+                             abs_phase=TRUE,obs_weights=NULL,RRBS=FALSE,replicate_id=NULL,separate_tests=TRUE,ncores=1,verbose=FALSE,...){
+
+
+
+  registerDoFuture()
+  if(ncores>1)
+  {
+    plan(multisession,workers = ncores)
+  }else{
+    plan(sequential)
+  }
 
   if(RRBS==TRUE)
   {
@@ -267,7 +279,15 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       eset<-t(voom_res$E)
     }
 
-    res<-foreach(i=1:ncol(eset))%do%{#ncol(eset)
+
+    chunks <- parallel::splitIndices(ncol(eset), min(ncol(eset),  ncores))
+    if(verbose)cat("Spliting data to",length(chunks)," chunks...\n")
+
+    res<-foreach(chIndx=chunks)%dopar%
+      {
+
+        outputs_fn<-foreach(i=chIndx)%do%{
+
 
       if(verbose)cat("Processing variable",i,"...\n")
 
@@ -644,10 +664,14 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       colnames(dt_out)<-gsub(pattern = "_B",replacement = paste("_",group_id[2],sep = ""),x = colnames(dt_out),fixed = T)
       if(verbose)cat("Variable",i,"finished\n")
       #list(results=dt_out,fit=model_ln,exp_design=exp_design)
-      new("mixedcirc_fit",results = dt_out,fit=model_ln,exp_design=exp_design,type=ifelse(RRBS,yes="RRBS",no = "expression"))
-    }
+     new("mixedcirc_fit",results = dt_out,fit=model_ln,exp_design=exp_design,type=ifelse(RRBS,yes="RRBS",no = "expression"))
+      }
+        outputs_fn
+      }
+
     future:::ClusterRegistry("stop")
-    res_tmp<-new("mixedcirc_fit_list",results = res)
+
+    res_tmp<-new("mixedcirc_fit_list",results = lapply(rapply(res, enquote, how="unlist"), eval))
     return((res_tmp))
 
 
@@ -707,7 +731,13 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       eset<-t(voom_res$E)
     }
 
-    res<-foreach::foreach(i=1:ncol(eset))%do%{#ncol(eset)
+    chunks <- parallel::splitIndices(ncol(eset), min(ncol(eset),  ncores))
+    if(verbose)cat("Spliting data to",length(chunks)," chunks...\n")
+
+    res<-foreach(chIndx=chunks)%dopar%
+      {
+
+        outputs_fn<-foreach(i=chIndx)%do%{
 
 
 
@@ -826,9 +856,14 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
       #list(results=dt_out,fit=model_ln,exp_design=exp_design)
       new("mixedcirc_fit",results = dt_out,fit=model_ln,exp_design=exp_design,type=ifelse(RRBS,yes="RRBS",no = "expression"))
 
-    }
+        }
+
+        outputs_fn
+      }
+
     future:::ClusterRegistry("stop")
-    res_tmp<-new("mixedcirc_fit_list",results = res)
+
+    res_tmp<-new("mixedcirc_fit_list",results = lapply(rapply(res, enquote, how="unlist"), eval))
     return((res_tmp))
 
   }
