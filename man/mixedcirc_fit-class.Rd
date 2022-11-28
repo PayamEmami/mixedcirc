@@ -16,5 +16,7 @@ Represents the result of model fitting on a single variable.
 \item{\code{fit}}{is the actual fitted model}
 
 \item{\code{exp_design}}{is the experimental design file created by mixedcirc_detect}
+
+\item{\code{type}}{represents the type of analysis done. E.g. RRBS etc}
 }}
 
