@@ -13,6 +13,7 @@
 #' @param obs_weights Regression weights. Default: NULL. See details
 #' @param RRBS If `TRUE`, the data is assumed to be RRBS methylation data. if TRUE, obs_weights must be set. Default FALSE
 #' @param replicate_id If `RRBS` is set to `TRUE`, This has to be a factor showing identity of each unique replicate.
+#' @param separate_tests If TRUE (defualt), separate models will be fit for each group to estimate rhythmicity otherwise, groupwise rhythmicity will be based on the a global model.
 #' @param verbose Show information about different stages of the processes. Default FALSE
 #' @param ... additionl arguments to the regression function
 #' @export
@@ -61,9 +62,7 @@
 mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
                              period=24,lm_method=c("lm","lme")[2],
                              f_test=c("multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger")[3],
-                             abs_phase=TRUE,obs_weights=NULL,RRBS=FALSE,replicate_id=NULL,verbose=FALSE,...){
-  doFuture::registerDoFuture()
-  future::plan(future::multisession)
+                             abs_phase=TRUE,obs_weights=NULL,RRBS=FALSE,replicate_id=NULL,separate_tests=TRUE,verbose=FALSE,...){
 
   if(RRBS==TRUE)
   {
@@ -317,80 +316,145 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
       f_p_value<-f_test_results$test$pvalue
 
-      # single_rhythm A
-
-      if(RRBS==TRUE)
+      if(separate_tests)
       {
+        # single_rhythm A
+        if(RRBS==TRUE)
+        {
 
-        model_ln_A<-switch(lm_method,
-                           lm = lm(measure ~0 +replicate_id+ inphase:scaler + outphase:scaler ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
-                           lme = lme4::lmer(measure~ 0 +replicate_id+ inphase:scaler + outphase:scaler+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
+          model_ln_A<-switch(lm_method,
+                             lm = lm(measure ~0 +replicate_id+ inphase:scaler + outphase:scaler ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
+                             lme = lmerTest::lmer(measure~ 0 +replicate_id+ inphase:scaler + outphase:scaler+(1 | rep) ,
+                                                  control = lmerControl(calc.derivs = FALSE,optimizer="bobyqa",optCtrl=list(maxfun=2e4)),
+                                                  data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
+
+        }else{
+          model_ln_A<-switch(lm_method,
+                             lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
+                             lme = lmerTest::lmer(measure~ 0 + inphase + outphase+(1 | rep) , control = lmerControl(calc.derivs = FALSE,optimizer="bobyqa",optCtrl=list(maxfun=2e4)),
+                                                  data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
+
+        }
+
+        cof_s<-matrix(0,nrow = ncol(design_s),ncol = ncol(design_s))
+        colnames(cof_s)<-rownames(cof_s)<-c(colnames(design_s))
+
+        conts_g<-c()
+        for(x in colnames(cof_s)[grep("phase", colnames(cof_s))])conts_g<-c(conts_g,paste(add_sym(x)," == 0",sep = ""))
+
+        g <- multcomp::glht(model_ln_A, linfct = conts_g)
+
+        f_test_results<-NULL
+        if(f_test=="multcomp_chi")
+        {
+          f_test_results<-multcomp:::summary.glht(g, test = Chisqtest())
+        }else if(f_test == "multcomp_f")
+        {
+          f_test_results<-multcomp:::summary.glht(g, test = Ftest())
+        }else if(f_test%in%c("Satterthwaite", "Kenward-Roger"))
+        {
+          f_test_results<-list(test=list(pvalue=lmerTest::contest(model_ln_A,L=g$linfct,joint = TRUE,ddf=f_test)[,"Pr(>F)"]))
+        }else{
+          stop("Wrong f test method!")
+        }
+
+        f_p_value_A<-f_test_results$test$pvalue
+
+
+        # single_rhythm B
+        if(RRBS==TRUE)
+        {
+
+          model_ln_B<-switch(lm_method,
+                             lm = lm(measure ~0+replicate_id + inphase:scaler + outphase:scaler ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
+                             lme = lmerTest::lmer(measure~ 0+replicate_id + inphase:scaler + outphase:scaler+(1 | rep),
+                                                  control = lmerControl(calc.derivs = FALSE,optimizer="bobyqa",optCtrl=list(maxfun=2e4)),data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
+
+        }else{
+          model_ln_B<-switch(lm_method,
+                             lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
+                             lme = lmerTest::lmer(measure~ 0 + inphase + outphase+(1 | rep),
+                                                  control = lmerControl(calc.derivs = FALSE,optimizer="bobyqa",optCtrl=list(maxfun=2e4)),data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
+
+        }
+
+
+        g <- multcomp::glht(model_ln_B, linfct = conts_g)
+
+        f_test_results<-NULL
+        if(f_test=="multcomp_chi")
+        {
+          f_test_results<-multcomp:::summary.glht(g, test = Chisqtest())
+        }else if(f_test == "multcomp_f")
+        {
+          f_test_results<-multcomp:::summary.glht(g, test = Ftest())
+        }else if(f_test%in%c("Satterthwaite", "Kenward-Roger"))
+        {
+          f_test_results<-list(test=list(pvalue=lmerTest::contest(model_ln_B,L=g$linfct,joint = TRUE,ddf=f_test)[,"Pr(>F)"]))
+        }else{
+          stop("Wrong f test method!")
+        }
+
+        f_p_value_B<-f_test_results$test$pvalue
 
       }else{
-        model_ln_A<-switch(lm_method,
-                           lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
-                           lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
 
+        # single_rhythm A
+
+        model_ln_A<-model_ln
+
+        conts_g<-c()
+        for(x in colnames(cof_s)[grep("phase", colnames(cof_s))])conts_g<-c(conts_g,paste(add_sym(x)," == 0",sep = ""))
+        conts<-conts[grepl(paste0(group_id[1],":"),x = conts,fixed = T)]
+
+        g <- multcomp::glht(model_ln_A, linfct = conts_g)
+
+        f_test_results<-NULL
+        if(f_test=="multcomp_chi")
+        {
+          f_test_results<-multcomp:::summary.glht(g, test = Chisqtest())
+        }else if(f_test == "multcomp_f")
+        {
+          f_test_results<-multcomp:::summary.glht(g, test = Ftest())
+        }else if(f_test%in%c("Satterthwaite", "Kenward-Roger"))
+        {
+          f_test_results<-list(test=list(pvalue=lmerTest::contest(model_ln_A,L=g$linfct,joint = TRUE,ddf=f_test)[,"Pr(>F)"]))
+        }else{
+          stop("Wrong f test method!")
+        }
+
+        f_p_value_A<-f_test_results$test$pvalue
+
+
+        # single_rhythm B
+
+
+        model_ln_B<-model_ln
+
+
+        conts_g<-c()
+        for(x in colnames(cof_s)[grep("phase", colnames(cof_s))])conts_g<-c(conts_g,paste(add_sym(x)," == 0",sep = ""))
+        conts_g<-conts[grepl(paste0(group_id[2],":"),x = conts_g,fixed = T)]
+
+
+        g <- multcomp::glht(model_ln_B, linfct = conts_g)
+
+        f_test_results<-NULL
+        if(f_test=="multcomp_chi")
+        {
+          f_test_results<-multcomp:::summary.glht(g, test = Chisqtest())
+        }else if(f_test == "multcomp_f")
+        {
+          f_test_results<-multcomp:::summary.glht(g, test = Ftest())
+        }else if(f_test%in%c("Satterthwaite", "Kenward-Roger"))
+        {
+          f_test_results<-list(test=list(pvalue=lmerTest::contest(model_ln_B,L=g$linfct,joint = TRUE,ddf=f_test)[,"Pr(>F)"]))
+        }else{
+          stop("Wrong f test method!")
+        }
+
+        f_p_value_B<-f_test_results$test$pvalue
       }
-
-      cof_s<-matrix(0,nrow = ncol(design_s),ncol = ncol(design_s))
-      colnames(cof_s)<-rownames(cof_s)<-c(colnames(design_s))
-
-      conts_g<-c()
-      for(x in colnames(cof_s)[grep("phase", colnames(cof_s))])conts_g<-c(conts_g,paste(add_sym(x)," == 0",sep = ""))
-
-      g <- multcomp::glht(model_ln_A, linfct = conts_g)
-
-      f_test_results<-NULL
-      if(f_test=="multcomp_chi")
-      {
-        f_test_results<-multcomp:::summary.glht(g, test = Chisqtest())
-      }else if(f_test == "multcomp_f")
-      {
-        f_test_results<-multcomp:::summary.glht(g, test = Ftest())
-      }else if(f_test%in%c("Satterthwaite", "Kenward-Roger"))
-      {
-        f_test_results<-list(test=list(pvalue=lmerTest::contest(model_ln_A,L=g$linfct,joint = TRUE,ddf=f_test)[,"Pr(>F)"]))
-      }else{
-        stop("Wrong f test method!")
-      }
-
-      f_p_value_A<-f_test_results$test$pvalue
-
-
-      # single_rhythm B
-      if(RRBS==TRUE)
-      {
-
-        model_ln_B<-switch(lm_method,
-                           lm = lm(measure ~0+replicate_id + inphase:scaler + outphase:scaler ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
-                           lme = lme4::lmer(measure~ 0+replicate_id + inphase:scaler + outphase:scaler+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
-
-      }else{
-        model_ln_B<-switch(lm_method,
-                           lm = lm(measure ~0 + inphase + outphase ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
-                           lme = lme4::lmer(measure~ 0 + inphase + outphase+(1 | rep) ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
-
-      }
-
-
-      g <- multcomp::glht(model_ln_B, linfct = conts_g)
-
-      f_test_results<-NULL
-      if(f_test=="multcomp_chi")
-      {
-        f_test_results<-multcomp:::summary.glht(g, test = Chisqtest())
-      }else if(f_test == "multcomp_f")
-      {
-        f_test_results<-multcomp:::summary.glht(g, test = Ftest())
-      }else if(f_test%in%c("Satterthwaite", "Kenward-Roger"))
-      {
-        f_test_results<-list(test=list(pvalue=lmerTest::contest(model_ln_B,L=g$linfct,joint = TRUE,ddf=f_test)[,"Pr(>F)"]))
-      }else{
-        stop("Wrong f test method!")
-      }
-
-      f_p_value_B<-f_test_results$test$pvalue
 
 
       ## prepare contrasts

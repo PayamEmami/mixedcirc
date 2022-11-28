@@ -49,7 +49,7 @@
 
 
 
-mixedcirc_rrbs_voom<-function (counts, formula, data, lib.size = NULL,chunk.size=100,
+mixedcirc_rrbs_voom_mixed<-function (counts, formula, data, lib.size = NULL,chunk.size=100,
                                span = 0.5, plot = FALSE, save.plot = FALSE, quiet = FALSE,
                                BPPARAM = bpparam(), ...)
 {

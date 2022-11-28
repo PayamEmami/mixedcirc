@@ -16,6 +16,7 @@ mixedcirc_detect(
   obs_weights = NULL,
   RRBS = FALSE,
   replicate_id = NULL,
+  separate_tests = TRUE,
   verbose = FALSE,
   ...
 )
@@ -42,6 +43,8 @@ mixedcirc_detect(
 \item{RRBS}{If `TRUE`, the data is assumed to be RRBS methylation data. if TRUE, obs_weights must be set. Default FALSE}
 
 \item{replicate_id}{If `RRBS` is set to `TRUE`, This has to be a factor showing identity of each unique replicate.}
+
+\item{separate_tests}{If TRUE (defualt), separate models will be fit for each group to estimate rhythmicity otherwise, groupwise rhythmicity will be based on the a global model.}
 
 \item{verbose}{Show information about different stages of the processes. Default FALSE}
 
