@@ -402,7 +402,8 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
         # single_rhythm A
 
         model_ln_A<-model_ln
-
+        cof_s<-matrix(0,nrow = ncol(design_s),ncol = ncol(design_s))
+        colnames(cof_s)<-rownames(cof_s)<-c(colnames(design_s))
         conts_g<-c()
         for(x in colnames(cof_s)[grep("phase", colnames(cof_s))])conts_g<-c(conts_g,paste(add_sym(x)," == 0",sep = ""))
         conts<-conts[grepl(paste0(group_id[1],":"),x = conts,fixed = T)]
@@ -430,7 +431,8 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
 
         model_ln_B<-model_ln
-
+        cof_s<-matrix(0,nrow = ncol(design_s),ncol = ncol(design_s))
+        colnames(cof_s)<-rownames(cof_s)<-c(colnames(design_s))
 
         conts_g<-c()
         for(x in colnames(cof_s)[grep("phase", colnames(cof_s))])conts_g<-c(conts_g,paste(add_sym(x)," == 0",sep = ""))
