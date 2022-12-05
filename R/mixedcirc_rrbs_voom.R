@@ -176,20 +176,20 @@ mixedcirc_rrbs_voom_mixed<-function (counts, formula, data, lib.size = NULL,chun
     y<-methylKit:::applyTbxByChunk(tbxFile = tbxFile_t,tabixHead = tabixHeadString,
                                    chunk.size = chunk.size,return.type = "tabix",dir = dir_for_file,filename = file_name,
                                    FUN = function(x){
-                                     xx<-x[,-c(1:4,counts@coverage.index),drop=F];
-                                     Ameans<-rowMeans(xx,na.rm = TRUE)[,drop=F]
+                                     xx<-as.matrix(x[,-c(1:4,counts@coverage.index),drop=F]);
+                                     Ameans<-rowMeans(xx,na.rm = TRUE)[,drop=F];
 
 
                                      xx_res<-x;
                                      vpList = variance_fit(xx, formula, data, showWarnings = FALSE,
                                                                                   fxn = function(fit) {
                                                                                     list(sd = attr(lme4::VarCorr(fit), "sc"), fitted.values = predict(fit))
-                                                                                  }, BPPARAM = BPPARAM,ignore_na = ignore_missing)
-                                     fitted.values <- lapply(vpList, function(x) x$fitted.values)
-                                     fitted.values <- do.call("rbind", fitted.values)
-                                     fit = list()
-                                     fit$sigma <- sapply(vpList, function(x) x$sd)
-                                     fit$df.residual = rep(2, length(fit$sigma))
+                                                                                  }, BPPARAM = BPPARAM,ignore_na = ignore_missing);
+                                     fitted.values <- lapply(vpList, function(x) x$fitted.values);
+                                     fitted.values <- do.call("rbind", fitted.values);
+                                     fit = list();
+                                     fit$sigma <- sapply(vpList, function(x) x$sd);
+                                     fit$df.residual = rep(2, length(fit$sigma));
                                      xx_res[,-c(1:4,counts@coverage.index)]<-fitted.values;
                                      cbind(xx_res,fit$sigma,fit$sigma,fit$sigma,fit$df.residual,fit$df.residual,fit$df.residual,
                                            Ameans,Ameans,Ameans)
