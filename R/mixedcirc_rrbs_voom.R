@@ -12,6 +12,7 @@
 #' @param save.plot logical, should the coordinates and line of the plot be saved in the output?
 #' @param quiet suppress message, default FALSE
 #' @param BPPARAM parameters for parallel evaluation
+#' @param ignore_missing if TRUE, the missing values will be left as they are. Otherwise, they will be imputed by zero. Default: False
 #' @param ... other arguments are passed to lmer
 #' @examples
 
@@ -33,7 +34,7 @@
 #' `group` is an optional (if differential rhythm analysis is done) two level factor that shows the grouping of the samples.
 #' If constructed correctly, the output of the function will be a list of two elemens (methylBaseDB) which can be used to extract the transformed methylated/unmethylated as well as the weights.
 #' The reason for this function is to solve the problem with high memory demand of RRBS data. If you have just a few loci, use can use `voomWithDreamWeights` or `voom` essentially using the same setup.
-#' By default NAs are imputed by zero.
+#' By default NAs are imputed by zero. However if ignore_missing, the missing values are ignores. The later is not according to voom recommendation. Use at your own risk!
 #'
 #' @import stats
 #' @import multcomp
@@ -51,7 +52,7 @@
 
 mixedcirc_rrbs_voom_mixed<-function (counts, formula, data, lib.size = NULL,chunk.size=100,
                                span = 0.5, plot = FALSE, save.plot = FALSE, quiet = FALSE,
-                               BPPARAM = bpparam(), ...)
+                               BPPARAM = bpparam(),ignore_missing=FALSE, ...)
 {
 
 
@@ -66,16 +67,20 @@ mixedcirc_rrbs_voom_mixed<-function (counts, formula, data, lib.size = NULL,chun
     tbxFile_t<-methylKit::getDBPath(counts)
     lib.size_partial<-methylKit:::applyTbxByChunk(tbxFile = tbxFile_t,
                                                   chunk.size = chunk.size,return.type = "data.frame",FUN = function(x){
-                                                    x[is.na(x)]<-0
+                                                    if(!ignore_missing)
+                                                    {
+                                                      x[is.na(x)]<-0;
+                                                    }
 
 
-                                                    as.data.frame(t(colSums(x[,counts@coverage.index])))[,,drop=F]
+
+                                                    as.data.frame(t(colSums(x[,counts@coverage.index],na.rm = TRUE)))[,,drop=F]
 
 
                                                   })
 
 
-    lib.size<-colSums(lib.size_partial)
+    lib.size<-colSums(lib.size_partial,na.rm = TRUE)
 
     # double the library one for meth and unmeth
     lib.size <- rep(lib.size,each=2)
@@ -112,7 +117,10 @@ mixedcirc_rrbs_voom_mixed<-function (counts, formula, data, lib.size = NULL,chun
                                  FUN = function(x){
 
                                    xx<-x[,-c(1:4,counts@coverage.index),drop=F];
-                                   xx[is.na(xx)]<-0
+                                   if(!ignore_missing)
+                                   {
+                                   xx[is.na(xx)]<-0;
+                                   }
                                    xx_res<-x;
                                    x2<-x;
                                    xx<-t(log2(t(xx + 0.5)/(lib.size + 1) * 1e+06));
@@ -173,10 +181,10 @@ mixedcirc_rrbs_voom_mixed<-function (counts, formula, data, lib.size = NULL,chun
 
 
                                      xx_res<-x;
-                                     vpList = variancePartition:::fitVarPartModel(xx, formula, data, showWarnings = FALSE,
+                                     vpList = variance_fit(xx, formula, data, showWarnings = FALSE,
                                                                                   fxn = function(fit) {
                                                                                     list(sd = attr(lme4::VarCorr(fit), "sc"), fitted.values = predict(fit))
-                                                                                  }, BPPARAM = BPPARAM)
+                                                                                  }, BPPARAM = BPPARAM,ignore_na = ignore_missing)
                                      fitted.values <- lapply(vpList, function(x) x$fitted.values)
                                      fitted.values <- do.call("rbind", fitted.values)
                                      fit = list()
@@ -205,7 +213,7 @@ mixedcirc_rrbs_voom_mixed<-function (counts, formula, data, lib.size = NULL,chun
 
                                               cbind(x[,y_norm@numCs.index[y_norm@sample.ids%in%c("sigma","Ameans")],drop=F],
                                                     rowSums( x[,c(y_norm@numCs.index[!y_norm@sample.ids%in%c("sigma"  ,   "resid"    , "Ameans" )],
-                                                                  y_norm@numTs.index[!y_norm@sample.ids%in%c("sigma"  ,   "resid"    , "Ameans" )]),drop=F]))
+                                                                  y_norm@numTs.index[!y_norm@sample.ids%in%c("sigma"  ,   "resid"    , "Ameans" )]),drop=F],na.rm = TRUE))
 
 
                                             })
@@ -296,4 +304,151 @@ mixedcirc_rrbs_voom_mixed<-function (counts, formula, data, lib.size = NULL,chun
   }
 
 
+}
+
+
+#' This function is used to calculate sigma of fit.
+#'
+#' @import stats
+#' @import multcomp
+#' @import doFuture
+#' @import future
+#' @import nlme
+#' @import future.apply
+#' @import lme4
+#' @import limma
+#' @import lmerTest
+#' @import foreach
+#' @import variancePartition
+variance_fit<-function (exprObj, formula, data, REML = FALSE, useWeights = TRUE,
+                        weightsMatrix = NULL, showWarnings = TRUE, fxn = identity,
+                        colinearityCutoff = 0.999, control = lme4::lmerControl(calc.derivs = FALSE,
+                                                                               check.rankX = "stop.deficient"), quiet = quiet, BPPARAM = bpparam(), ignore_na=FALSE,
+                        ...)
+{
+  formula = stats::as.formula(formula)
+  if (ncol(exprObj) != nrow(data)) {
+    stop("the number of samples in exprObj (i.e. cols) must be the same as in data (i.e rows)")
+  }
+  if (!is(exprObj, "sparseMatrix")) {
+    countNA = sum(is.nan(exprObj)) + sum(!is.finite(exprObj))
+    if (countNA > 0) {
+      if(!ignore_na)
+      {
+        stop("There are ", countNA, " NA/NaN/Inf values in exprObj\nMissing data is not allowed")
+      }else{
+
+        warning("There are ", countNA, " NA/NaN/Inf values in exprObj\nMissing data is not allowed")
+      }
+
+    }
+    rv = apply(exprObj, 1, var,na.rm=ignore_na)
+  }
+  else {
+    rv = c()
+    for (i in seq_len(nrow(exprObj))) {
+      rv[i] = var(exprObj[i, ],na.rm=ignore_na)
+    }
+  }
+  if (any(rv == 0)) {
+    idx = which(rv == 0)
+    stop(paste("Response variable", idx[1], "has a variance of 0"))
+  }
+  if (useWeights && is.null(weightsMatrix)) {
+    useWeights = FALSE
+  }
+  if (useWeights && !identical(dim(exprObj), dim(weightsMatrix))) {
+    stop("exprObj and weightsMatrix must be the same dimensions")
+  }
+  if (variancePartition:::.isDisconnected()) {
+    stop("Cluster connection lost. Either stopCluster() was run too soon\n, or connection expired")
+  }
+  if (!identical(colnames(exprObj), rownames(data))) {
+    warning("Sample names of responses (i.e. columns of exprObj) do not match\nsample names of metadata (i.e. rows of data).  Recommend consistent\nnames so downstream results are labeled consistently.")
+  }
+  form = paste("responsePlaceholder$E", paste(as.character(formula),
+                                              collapse = ""))
+  responsePlaceholder = iterators::nextElem(variancePartition:::exprIter(exprObj, weightsMatrix,
+                                                                         useWeights))
+  possibleError <- tryCatch(lmer(eval(parse(text = form)),
+                                 data = data, ..., control = control), error = function(e) e)
+  if (inherits(possibleError, "error")) {
+    err = grep("object '.*' not found", possibleError$message)
+    if (length(err) > 0) {
+      stop("Variable in formula is not found: ", gsub("object '(.*)' not found",
+                                                      "\\1", possibleError$message))
+    }
+  }
+  pb <- progress::progress_bar$new(format = ":current/:total [:bar] :percent ETA::eta",
+                                   , total = nrow(exprObj), width = 60, clear = FALSE)
+  timeStart = proc.time()
+  mesg <- "No random effects terms specified in formula"
+  method = ""
+  if (inherits(possibleError, "error") && identical(possibleError$message,
+                                                    mesg)) {
+    fit <- lm(eval(parse(text = form)), data = data, ...)
+    variancePartition:::checkModelStatus(fit, showWarnings = showWarnings, colinearityCutoff = colinearityCutoff)
+    res <- foreach(responsePlaceholder = variancePartition:::exprIter(exprObj,
+                                                                      weightsMatrix, useWeights), .packages = c("splines",
+                                                                                                                "lme4")) %do% {
+                                                                                                                  fit = lm(eval(parse(text = form)), data = data, weights = responsePlaceholder$weights,
+                                                                                                                           na.action = stats::na.exclude, ...)
+                                                                                                                  fxn(fit)
+                                                                                                                }
+    method = "lm"
+  }
+  else {
+    if (inherits(possibleError, "error") && grep("the fixed-effects model matrix is column rank deficient",
+                                                 possibleError$message) == 1) {
+      stop(paste(possibleError$message, "\n\nSuggestion: rescale fixed effect variables.\nThis will not change the variance fractions or p-values."))
+    }
+    responsePlaceholder = iterators:::nextElem(variancePartition:::exprIter(exprObj, weightsMatrix,
+                                                                            useWeights))
+    timeStart = proc.time()
+    fitInit <- lmer(eval(parse(text = form)), data = data,
+                    ..., REML = REML, control = control)
+    timediff = proc.time() - timeStart
+    objSize = object.size(fxn(fitInit)) * nrow(exprObj)
+    if (!quiet)
+      message("Memory usage to store result: >", format(objSize,
+                                                        units = "auto"))
+    variancePartition:::checkModelStatus(fitInit, showWarnings = showWarnings,
+                                         colinearityCutoff = colinearityCutoff)
+    data2 = data.frame(data, expr = responsePlaceholder$E,
+                       check.names = FALSE)
+    form = paste("expr", paste(as.character(formula), collapse = ""))
+    .eval_models = function(responsePlaceholder, data2, form,
+                            REML, theta, fxn, control, na.action = stats::na.exclude,
+                            ...) {
+      data2$expr = responsePlaceholder$E
+      fit = lmer(eval(parse(text = form)), data = data2,
+                 ..., REML = REML, weights = responsePlaceholder$weights,
+                 control = control, na.action = na.action)
+      fxn(fit)
+    }
+    .eval_master = function(obj, data2, form, REML, theta,
+                            fxn, control, na.action = stats::na.exclude, ...) {
+      lapply(seq_len(nrow(obj$E)), function(j) {
+        .eval_models(list(E = obj$E[j, ], weights = obj$weights[j,
+        ]), data2, form, REML, theta, fxn, control,
+        na.action, ...)
+      })
+    }
+    it = variancePartition:::iterBatch(exprObj, weightsMatrix, useWeights, n_chunks = 100)
+    if (!quiet)
+      message(paste0("Dividing work into ", attr(it, "n_chunks"),
+                     " chunks..."))
+    res <- BiocParallel::bpiterate(it, .eval_master, data2 = data2, form = form,
+                                   REML = REML, theta = fitInit@theta, fxn = fxn, control = control,
+                                   ..., REDUCE = c, reduce.in.order = TRUE, BPPARAM = BPPARAM)
+    if (is(res, "remote_error")) {
+      stop("Error evaluating fxn:\n\n", res)
+    }
+    method = "lmer"
+  }
+  if (!quiet)
+    message("\nTotal:", paste(format((proc.time() - timeStart)[3],
+                                     digits = 0), "s"))
+  names(res) <- rownames(exprObj)
+  new("VarParFitList", res, method = method)
 }
