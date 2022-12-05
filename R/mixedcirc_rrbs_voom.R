@@ -323,7 +323,7 @@ mixedcirc_rrbs_voom_mixed<-function (counts, formula, data, lib.size = NULL,chun
 variance_fit<-function (exprObj, formula, data, REML = FALSE, useWeights = TRUE,
                         weightsMatrix = NULL, showWarnings = TRUE, fxn = identity,
                         colinearityCutoff = 0.999, control = lme4::lmerControl(calc.derivs = FALSE,
-                                                                               check.rankX = "stop.deficient"), quiet = quiet, BPPARAM = bpparam(), ignore_na=FALSE,
+                                                                               check.rankX = "stop.deficient"), quiet = FALSE, BPPARAM = bpparam(), ignore_na=FALSE,
                         ...)
 {
   formula = stats::as.formula(formula)
