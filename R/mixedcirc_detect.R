@@ -273,7 +273,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
           formula<-~ 0 + group + group:inphase + group:outphase+(1 | rep)
         }
 
-        voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design)
+        voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design,BPPARAM = BiocParallel::SnowParam(workers = ncores))
       }
       obs_weights <-t(voom_res$weights)
       eset<-t(voom_res$E)
@@ -728,7 +728,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
         }
 
 
-        voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design)
+        voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design,BPPARAM = BiocParallel::SnowParam(workers = ncores))
       }
       obs_weights <-t(voom_res$weights)
       eset<-t(voom_res$E)
