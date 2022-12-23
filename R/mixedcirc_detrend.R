@@ -36,7 +36,7 @@
 #' @import mixOmics
 #' @import dplyr
 
-mixedcirc_detrend<-function(fit = NULL, per_group = FALSE, verbose = FALSE, ...)
+mixedcirc_detrend<-function (fit = NULL, per_group = FALSE, verbose = FALSE, ...)
 {
   if (verbose)
     cat("Checking inputs ...\n")
@@ -84,7 +84,7 @@ mixedcirc_detrend<-function(fit = NULL, per_group = FALSE, verbose = FALSE, ...)
                                                                              time = object@exp_design$time[indexe], rep = as.character(object@exp_design$rep)[indexe]),
                                         weights = weights))
         }
-        fitted_values[which(gr_pos == grs)[rownames(object@exp_design)%in%rownames(object@fit@frame)], i] <- de_tr
+        fitted_values[which(gr_pos == grs)[rownames(object@exp_design[gr_pos == grs,])%in%rownames(object@fit@frame)], i] <- de_tr
       }
     }
     colnames(fitted_values) <- ft_names
@@ -124,10 +124,9 @@ mixedcirc_detrend<-function(fit = NULL, per_group = FALSE, verbose = FALSE, ...)
                                                                            time = fit@exp_design$time[indexe], rep = as.character(fit@exp_design$rep)[indexe]),
                                       weights = weights, ...))
       }
-      fitted_values[which(gr_pos == grs)[rownames(fit@exp_design)%in%rownames(fit@fit@frame)]] <- as.matrix(de_tr)
+      fitted_values[which(gr_pos == grs)[rownames(fit@exp_design[gr_pos == grs,])%in%rownames(fit@fit@frame)]] <- as.matrix(de_tr)
     }
     colnames(fitted_values) <- rownames(fit@results)
   }
   return(fitted_values)
 }
-
