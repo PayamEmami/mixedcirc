@@ -15,7 +15,7 @@ variance_fit(
   fxn = identity,
   colinearityCutoff = 0.999,
   control = lme4::lmerControl(calc.derivs = FALSE, check.rankX = "stop.deficient"),
-  quiet = quiet,
+  quiet = FALSE,
   BPPARAM = bpparam(),
   ignore_na = FALSE,
   ...
