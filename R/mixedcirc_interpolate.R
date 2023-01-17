@@ -45,10 +45,6 @@ mixedcirc_interpolate<- function(x, period=24,
   }
 
   object <- x
-  if(is.null(plot_title)) {
-    plot_title<-rownames(object@results)
-    if(is.null(plot_title)) { plot_title <- "Variable" }
-  }
   type_of_analysis<-object@type
   fit <- object@fit
   pr_rows <- c()
