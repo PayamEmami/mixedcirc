@@ -28,7 +28,7 @@
 #' @details
 #' For each variable we use the following mode:
 #' In this part we do rhythmicity analysis on individual variables using the following model:
-#' measure ~0 + time
+#' measure ~time
 #' The residulas will be outputed
 #'
 #' `obs_weights` is a matrix of size N*P where each colum shows the weights for all the observations for that particular variable.
@@ -216,18 +216,18 @@ mixedcirc_remove_trend <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
     if(RRBS==TRUE)
     {
 
-      design <- stats::model.matrix(~0+ replicate_id+ time:scaler ,
+      design <- stats::model.matrix(~ replicate_id+ time:scaler ,
                                     data = exp_design)
 
-      design_s <- stats::model.matrix(~0+replicate_id+  time:scaler,
+      design_s <- stats::model.matrix(~replicate_id+  time:scaler,
                                       data = exp_design)
 
     }else{
 
-      design <- stats::model.matrix(~0+ time,
+      design <- stats::model.matrix(~ time,
                                     data = exp_design)
 
-      design_s <- stats::model.matrix(~0+  time,
+      design_s <- stats::model.matrix(~  time,
                                       data = exp_design)
     }
 
@@ -249,9 +249,9 @@ mixedcirc_remove_trend <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
         if(RRBS==TRUE)
         {
 
-          formula<-~0+ replicate_id + time:scaler +(1 | rep)
+          formula<-~ replicate_id + time:scaler +(1 | rep)
         }else{
-          formula<-~0+  time +(1 | rep)
+          formula<-~  time +(1 | rep)
         }
 
         voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design,BPPARAM = BiocParallel::SnowParam(workers = ncores))
@@ -282,14 +282,14 @@ mixedcirc_remove_trend <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
               suppressMessages({
                 model_ln<-switch(lm_method,
-                                 lm = lm(measure ~0+replicate_id+ time:scaler ,data=data_grouped,weights = obs_weights[,i],...),
-                                 lme = lme4::lmer(measure~0+ replicate_id+ time:scaler +(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
+                                 lm = lm(measure ~replicate_id+ time:scaler ,data=data_grouped,weights = obs_weights[,i],...),
+                                 lme = lme4::lmer(measure~ replicate_id+ time:scaler +(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
               })
             }else{
               suppressMessages({
                 model_ln<-switch(lm_method,
-                                 lm = lm(measure ~0+ time ,data=data_grouped,weights = obs_weights[,i],...),
-                                 lme = lme4::lmer(measure~0+  time +(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
+                                 lm = lm(measure ~ time ,data=data_grouped,weights = obs_weights[,i],...),
+                                 lme = lme4::lmer(measure~  time +(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
               })
             }
 
@@ -301,16 +301,15 @@ mixedcirc_remove_trend <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
             {
               suppressMessages({
                 model_ln_A<-switch(lm_method,
-                                   lm = lm(measure ~0+replicate_id+ time:scaler ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
-                                   lme = lmerTest::lmer(measure~0+ replicate_id+ time:scaler +(1 | rep) ,
-                                                        control = lmerControl(calc.derivs = FALSE,optimizer="bobyqa",optCtrl=list(maxfun=2e4)),
+                                   lm = lm(measure ~replicate_id+ time:scaler ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
+                                   lme = lmerTest::lmer(measure~ replicate_id+ time:scaler +(1 | rep) ,
                                                         data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
               })
             }else{
               suppressMessages({
                 model_ln_A<-switch(lm_method,
-                                   lm = lm(measure ~0+ time  ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
-                                   lme = lmerTest::lmer(measure~0+  time +(1 | rep) , control = lmerControl(calc.derivs = FALSE,optimizer="bobyqa",optCtrl=list(maxfun=2e4)),
+                                   lm = lm(measure ~ time  ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
+                                   lme = lmerTest::lmer(measure~  time +(1 | rep) ,
                                                         data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
               })
             }
@@ -323,16 +322,14 @@ mixedcirc_remove_trend <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
             {
               suppressMessages({
                 model_ln_B<-switch(lm_method,
-                                   lm = lm(measure ~0+replicate_id + time:scaler ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
-                                   lme = lmerTest::lmer(measure~0+ replicate_id + time:scaler +(1 | rep),
-                                                        control = lmerControl(calc.derivs = FALSE,optimizer="bobyqa",optCtrl=list(maxfun=2e4)),data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
+                                   lm = lm(measure ~replicate_id + time:scaler ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
+                                   lme = lmerTest::lmer(measure~ replicate_id + time:scaler +(1 | rep),data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
               })
             }else{
               suppressMessages({
                 model_ln_B<-switch(lm_method,
-                                   lm = lm(measure ~0+ time  ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
-                                   lme = lmerTest::lmer(measure~0+  time +(1 | rep),
-                                                        control = lmerControl(calc.derivs = FALSE,optimizer="bobyqa",optCtrl=list(maxfun=2e4)),data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
+                                   lm = lm(measure ~ time  ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
+                                   lme = lmerTest::lmer(measure~  time +(1 | rep),data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
               })
             }
 
@@ -362,18 +359,18 @@ mixedcirc_remove_trend <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
     if(RRBS==TRUE)
     {
 
-      design <- stats::model.matrix(~0+ replicate_id + time:scaler,
+      design <- stats::model.matrix(~ replicate_id + time:scaler,
                                     data = exp_design)
 
-      design_s <- stats::model.matrix(~0+replicate_id+  time:scaler,
+      design_s <- stats::model.matrix(~replicate_id+  time:scaler,
                                       data = exp_design)
 
     }else{
 
-      design <- stats::model.matrix(~0+ time ,
+      design <- stats::model.matrix(~ time ,
                                     data = exp_design)
 
-      design_s <- stats::model.matrix(~0+  time,
+      design_s <- stats::model.matrix(~  time,
                                       data = exp_design)
     }
 
@@ -394,9 +391,9 @@ mixedcirc_remove_trend <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
         if(RRBS==TRUE)
         {
 
-          formula<-~0+ replicate_id  + time:scaler+(1 | rep)
+          formula<-~ replicate_id  + time:scaler+(1 | rep)
         }else{
-          formula<-~0+  time +(1 | rep)
+          formula<-~  time +(1 | rep)
         }
 
 
@@ -423,14 +420,14 @@ mixedcirc_remove_trend <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
           {
             suppressMessages({
               model_ln<-switch(lm_method,
-                               lm = lm(measure ~0+replicate_id + time:scaler ,data=data_grouped,weights = obs_weights[,i],...),
-                               lme = lme4::lmer(measure~0+ replicate_id +time:scaler +(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
+                               lm = lm(measure ~replicate_id + time:scaler ,data=data_grouped,weights = obs_weights[,i],...),
+                               lme = lme4::lmer(measure~ replicate_id +time:scaler +(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
             })
           }else{
             suppressMessages({
               model_ln<-switch(lm_method,
-                               lm = lm(measure ~0+time ,data=data_grouped,weights = obs_weights[,i],...),
-                               lme = lme4::lmer(measure~0+ time +(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
+                               lm = lm(measure ~time ,data=data_grouped,weights = obs_weights[,i],...),
+                               lme = lme4::lmer(measure~ time +(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
             })
           }
 
