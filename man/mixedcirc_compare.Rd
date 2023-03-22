@@ -7,6 +7,7 @@
 mixedcirc_compare(
   x,
   y,
+  cor_type = c("standard", "crosscorrelation")[2],
   type = c("original", "fitted", "simulate")[1],
   merge_groups = FALSE,
   period = 24,
@@ -24,6 +25,8 @@ mixedcirc_compare(
 
 \item{y}{A class of mixedcirc_fit}
 
+\item{cor_type}{It can be one of "standard" or "crosscorrelation". Default:crosscorrelation  See details.}
+
 \item{type}{It can be one of "original", "fitted", "simulate". original: original data will used. fitted values will be used. simulate: data will be simulated based on the models and will be used to do cross correlation. Default: original}
 
 \item{merge_groups}{If TRUE, for multi-group experiments, groups are NOT correlated separately. Default: FALSE}
@@ -37,16 +40,27 @@ mixedcirc_compare(
 \item{min_time}{Minimum time span to do the prediction. If NULL, it will be taken from the fit. Default: NULL}
 
 \item{max_time}{Maximum time span to do the prediction. If NULL, it will be taken from the fit. Default: NULL}
+
+\item{number}{of bootstrap simulations to obtain empirical critical values. Default is 1000.}
 }
 \value{
 A list containing:
 A ggplot object.
-A statistical components of cross correlation.
+A statistical components of standard and cross correlation.
 }
 \description{
-This functions compare two circadian rhythm fitted using mixedcirc_detect function using cross-correlation.
+This functions compare two circadian rhythm fitted using mixedcirc_detect function using standard or cross-correlation.
 }
 \details{
+cor_type
+
+One can doe standard and cross correlation between two series.
+In standard mode, we fit a model of y~x and calculate r-squared (marginal r-squared  in case of repeated measures).
+The correlation is then simply assumed to be sign of coeffect of X * sqrt(r-squared)
+
+This is a typical cross-correlation. In case of repeated measures specially the p-values cannot be trusted.
+
+
 In case of RRBS, the data is assumed to be log2. The M-values are calculated as Mathylated-Unmethylated.
 In any case, the data in x and y will be matched using all the columns in the exp_design (except the measurement)
 }

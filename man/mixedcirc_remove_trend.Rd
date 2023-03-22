@@ -56,7 +56,7 @@ This functions performs trend removing using mixed models.
 \details{
 For each variable we use the following mode:
 In this part we do rhythmicity analysis on individual variables using the following model:
-measure ~0 + time
+measure ~time
 The residulas will be outputed
 
 `obs_weights` is a matrix of size N*P where each colum shows the weights for all the observations for that particular variable.
