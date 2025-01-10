@@ -14,6 +14,7 @@
 #' @param RRBS If `TRUE`, the data is assumed to be RRBS methylation data. if TRUE, obs_weights must be set. Default FALSE
 #' @param replicate_id If `RRBS` is set to `TRUE`, This has to be a factor showing identity of each unique replicate.
 #' @param separate_tests If TRUE (defualt), separate models will be fit for each group to estimate rhythmicity otherwise, groupwise rhythmicity will be based on the a global model.
+#' @param force_weight_estimation If TRUE, variance-mean trend weight estimation will be performed regardless of the data input type
 #' @param ncores number of cores
 #' @param verbose Show information about different stages of the processes. Default FALSE
 #' @param ... additionl arguments to the regression function
@@ -64,7 +65,7 @@
 mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
                              period=24,lm_method=c("lm","lme")[2],
                              f_test=c("multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger")[3],
-                             abs_phase=TRUE,obs_weights=NULL,RRBS=FALSE,replicate_id=NULL,separate_tests=TRUE,ncores=1,verbose=FALSE,...){
+                             abs_phase=TRUE,obs_weights=NULL,RRBS=FALSE,replicate_id=NULL,separate_tests=TRUE,force_weight_estimation=FALSE,ncores=1,verbose=FALSE,...){
 
 
 
@@ -257,7 +258,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
     colnames(design) <- gsub("group", "", colnames(design))
     colnames(design) <- gsub(":", "_", colnames(design))
 
-    if(is(data_input,"DGEList")){
+    if(is(data_input,"DGEList") | force_weight_estimation==TRUE){
       if(verbose)cat("Estimating weights for the input variables ...\n")
 
       if(lm_method=="lm")
@@ -273,7 +274,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
           formula<-~ 0 + group + group:inphase + group:outphase+(1 | rep)
         }
 
-        voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design)
+        voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design,BPPARAM = BiocParallel::SnowParam(workers = ncores))
       }
       obs_weights <-t(voom_res$weights)
       eset<-t(voom_res$E)
@@ -710,7 +711,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
 
     colnames(design) <- gsub(":", "_", colnames(design))
 
-    if(is(data_input,"DGEList")){
+    if(is(data_input,"DGEList")| force_weight_estimation==TRUE){
       if(verbose)cat("Estimating weights for the input variables ...\n")
 
       if(lm_method=="lm")
@@ -728,7 +729,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
         }
 
 
-        voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design)
+        voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design,BPPARAM = BiocParallel::SnowParam(workers = ncores))
       }
       obs_weights <-t(voom_res$weights)
       eset<-t(voom_res$E)

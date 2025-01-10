@@ -15,6 +15,7 @@ mixedcirc_rrbs_voom_mixed(
   save.plot = FALSE,
   quiet = FALSE,
   BPPARAM = bpparam(),
+  ignore_missing = FALSE,
   ...
 )
 }
@@ -39,6 +40,8 @@ mixedcirc_rrbs_voom_mixed(
 
 \item{BPPARAM}{parameters for parallel evaluation}
 
+\item{ignore_missing}{if TRUE, the missing values will be left as they are. Otherwise, they will be imputed by zero. Default: False}
+
 \item{...}{other arguments are passed to lmer}
 }
 \value{
@@ -61,7 +64,7 @@ this means that `data` must contain replicate_id, scaler, in and out.
 `group` is an optional (if differential rhythm analysis is done) two level factor that shows the grouping of the samples.
 If constructed correctly, the output of the function will be a list of two elemens (methylBaseDB) which can be used to extract the transformed methylated/unmethylated as well as the weights.
 The reason for this function is to solve the problem with high memory demand of RRBS data. If you have just a few loci, use can use `voomWithDreamWeights` or `voom` essentially using the same setup.
-By default NAs are imputed by zero.
+By default NAs are imputed by zero. However if ignore_missing, the missing values are ignores. The later is not according to voom recommendation. Use at your own risk!
 }
 \examples{
 
