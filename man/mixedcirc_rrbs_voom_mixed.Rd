@@ -66,6 +66,3 @@ If constructed correctly, the output of the function will be a list of two eleme
 The reason for this function is to solve the problem with high memory demand of RRBS data. If you have just a few loci, use can use `voomWithDreamWeights` or `voom` essentially using the same setup.
 By default NAs are imputed by zero. However if ignore_missing, the missing values are ignores. The later is not according to voom recommendation. Use at your own risk!
 }
-\examples{
-
-}

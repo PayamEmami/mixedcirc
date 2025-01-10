@@ -29,9 +29,6 @@ numeric - the peak time
 \description{
 This function finds peak of a rhythm
 }
-\details{
-
-}
 \examples{
 data("circa_data")
 

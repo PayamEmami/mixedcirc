@@ -1,3 +1,44 @@
+#' Represents the result of bootstrap testing for mixed circadian models.
+#'
+#' @slot results A data frame that contains bootstrap statistics (e.g., estimates, confidence intervals, p-values).
+#' @slot metadata A list containing metadata about the bootstrap procedure (e.g., number of simulations, confidence level).
+#' @slot original_model The original model object on which the bootstrap was performed.
+mixedcirc_boot <- setClass("mixedcirc_boot",
+                           slots = list(
+                             results = "data.frame",
+                             metadata = "list",
+                             original_model = "ANY"))
+
+# Print method for mixedcirc_boot
+setMethod("show", "mixedcirc_boot", function(object) {
+  cat("mixedcirc_boot Object\n")
+  cat("----------------------\n")
+  cat("Bootstrap Results:\n")
+  print((object@results))
+  if (!is.null(object@metadata)) {
+    cat("\nMetadata:\n")
+    print(object@metadata)
+  }
+  invisible(object)
+})
+
+# Summary method for mixedcirc_boot
+setMethod("summary", "mixedcirc_boot", function(object) {
+  cat("Summary of mixedcirc_boot Object\n")
+  cat("-------------------------------\n")
+  cat("Number of Simulations:", object@metadata$nsim, "\n")
+  cat("Confidence Level:", object@metadata$conf_level, "\n")
+  cat("\nSummary Statistics:\n")
+  print(object@results)
+  invisible(object)
+})
+
+# as.data.frame method for mixedcirc_boot
+setMethod("as.data.frame", "mixedcirc_boot", function(x, ...) {
+  x@results
+})
+
+
 #' Represents the result of model fitting on a single variable.
 #'
 #' @slot results A one row data frame that contains statistics of fitted model

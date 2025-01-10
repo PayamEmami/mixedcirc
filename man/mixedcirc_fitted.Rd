@@ -17,9 +17,6 @@ A matrix of detrended data
 \description{
 This function extract the fitted values of circadian rhythm.
 }
-\details{
-
-}
 \examples{
 library(mixedcirc)
 data("circa_data")
