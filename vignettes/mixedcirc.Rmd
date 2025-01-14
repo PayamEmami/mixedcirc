@@ -123,6 +123,16 @@ plot(results[1], plot_smooth=TRUE, plot_points=FALSE)
 
 In the above plot, the dashed line (smoothing line) perfectly follows the solid line (the fit of the model), indicating that our fit is supported by the data.
 
+You can also do significant test on individual fitted models:
+
+
+```{r, warning=FALSE, error=FALSE, message=FALSE, fig.height=5, fig.width=7}
+boot_results<-mixedcirc_boottest(results[1],nsim = 10,seed = 10)
+print(boot_results)
+```
+
+
+
 ## Data integration
 
 `mixedcirc` provides support for doing integrative rhythm analysis (e.g., multiOmics) using canonical correlations. In this type of analysis, there are multiple types of data sets (e.g., RNA-seq and metabolomics) and the we are interested to extract a pattern that is supported by the majority of the datasets.

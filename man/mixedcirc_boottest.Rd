@@ -7,6 +7,7 @@
 mixedcirc_boottest(
   object,
   nsim,
+  seed,
   parallel = c("no", "multicore", "snow"),
   ncpus = getOption("boot.ncpus", 1L),
   boot.type = c("perc", "basic", "norm")[1],
@@ -19,6 +20,8 @@ mixedcirc_boottest(
 \item{object}{A fitted model object of class \code{mixedcirc_fit}.}
 
 \item{nsim}{Number of bootstrap simulations.}
+
+\item{seed}{seed for reproducibitly}
 
 \item{parallel}{The type of parallel processing to use (\code{"no"}, \code{"multicore"}, \code{"snow"}).}
 
