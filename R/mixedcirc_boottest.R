@@ -215,6 +215,7 @@ mixedcirc_boottest<-function(object,nsim,seed,parallel = c("no", "multicore", "s
   ))
 }
 
+#' @export
 refit.lm <- function(object, new_response) {
   # Extract the original model frame
   mf <- model.frame(object)

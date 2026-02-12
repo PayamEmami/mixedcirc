@@ -49,7 +49,6 @@
 #' @import limma
 #' @import lmerTest
 #' @import foreach
-#' @import variancePartition
 #' @import mixOmics
 #' @import dplyr
 

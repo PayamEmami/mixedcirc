@@ -1186,37 +1186,6 @@
       "Hash": "c9c462b759a5cc844ae25b5942654d13",
       "Requirements": []
     },
-    "variancePartition": {
-      "Package": "variancePartition",
-      "Version": "1.26.0",
-      "Source": "Bioconductor",
-      "git_url": "https://git.bioconductor.org/packages/variancePartition",
-      "git_branch": "RELEASE_3_15",
-      "git_last_commit": "b173129",
-      "git_last_commit_date": "2022-04-26",
-      "Hash": "f30a17ad820d620d60ba20f2ed06d49d",
-      "Requirements": [
-        "Biobase",
-        "BiocParallel",
-        "MASS",
-        "Matrix",
-        "Rdpack",
-        "RhpcBLASctl",
-        "aod",
-        "doParallel",
-        "foreach",
-        "ggplot2",
-        "gplots",
-        "iterators",
-        "limma",
-        "lme4",
-        "lmerTest",
-        "pbkrtest",
-        "reshape2",
-        "rlang",
-        "scales"
-      ]
-    },
     "vctrs": {
       "Package": "vctrs",
       "Version": "0.4.1",

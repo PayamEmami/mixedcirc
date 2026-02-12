@@ -25,7 +25,6 @@ Depends:
     ggplot2,
     ggsci,
     ggpubr,
-    variancePartition,
     multtest,
     mixOmics,
     cowplot,

@@ -18,7 +18,7 @@
 #'
 #'results<-mixedcirc_detect(data_input = circa_data$data_matrix,
 #'time = circa_data$time,group = circa_data$group,id = circa_data$id,period = 24,verbose = TRUE)
-#' plot(results[[1]])
+#' plot(results[1])
 #' @return
 #' A ggplot object.
 #'
@@ -109,7 +109,7 @@ mixedcirc_fit_plot<- function(x, period=24,
   library(ggsci)
 
   if(class(fit) == "lm") {
-    raw_data<-data.frame(measure=results[[1]]@fit$model[,"measure"],exp_design)
+    raw_data<-data.frame(measure=fit$model[,"measure"],exp_design)
   } else {
     raw_data<-data.frame(measure=fit@frame[,"measure"],exp_design)
   }

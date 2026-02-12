@@ -107,6 +107,7 @@ setMethod(f = "show",
           definition = function(object) { print(object@results) }
 )
 
+#' @export
 print.mixedcirc_fit_list <- function(x, ...) {
 	cat('Total number of variables: ', length(x@results))
 }
@@ -119,6 +120,7 @@ setMethod(show, "mixedcirc_integration", function(object) {
   cat('Total number of Omics: ', length(object@partial), '! Use partial or average scores in mixedcirc_detect!')
 })
 
+#' @export
 print.mixedcirc_integration <- function(x, ...) {
 	cat('Total number of Omics: ', length(object@partial),'! Use partial or average scores in mixedcirc_detect!')
 }

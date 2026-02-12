@@ -54,5 +54,5 @@ data("circa_data")
 
 results<-mixedcirc_detect(data_input = circa_data$data_matrix,
 time = circa_data$time,group = circa_data$group,id = circa_data$id,period = 24,verbose = TRUE)
-plot(results[[1]])
+plot(results[1])
 }

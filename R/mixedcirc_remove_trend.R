@@ -53,7 +53,6 @@
 #' @import limma
 #' @import lmerTest
 #' @import foreach
-#' @import variancePartition
 #' @import parallel
 
 mixedcirc_remove_trend <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
@@ -254,7 +253,7 @@ mixedcirc_remove_trend <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
           formula<-~  time +(1 | rep)
         }
 
-        voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design,BPPARAM = BiocParallel::SnowParam(workers = ncores))
+        voom_res<-voomWithDreamWeights(data_input,formula = formula,data = exp_design,BPPARAM = BiocParallel::SnowParam(workers = ncores))
       }
       obs_weights <-t(voom_res$weights)
       eset<-t(voom_res$E)
@@ -397,7 +396,7 @@ mixedcirc_remove_trend <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
         }
 
 
-        voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design,BPPARAM = BiocParallel::SnowParam(workers = ncores))
+        voom_res<-voomWithDreamWeights(data_input,formula = formula,data = exp_design,BPPARAM = BiocParallel::SnowParam(workers = ncores))
       }
       obs_weights <-t(voom_res$weights)
       eset<-t(voom_res$E)
