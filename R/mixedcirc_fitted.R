@@ -29,7 +29,6 @@
 #' @import limma
 #' @import lmerTest
 #' @import foreach
-#' @import mixOmics
 #' @import dplyr
 
 mixedcirc_fitted<-function (fit = NULL, per_group = FALSE, verbose = FALSE, ...)

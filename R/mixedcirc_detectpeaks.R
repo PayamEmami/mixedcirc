@@ -34,7 +34,7 @@
 #' @import limma
 #' @import lmerTest
 #' @import foreach
-#' @import multtest
+
 
 
 mixedcirc_detectpeaks <- function(phi,

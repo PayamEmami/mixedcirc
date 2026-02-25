@@ -35,7 +35,7 @@
 #' @import limma
 #' @import lmerTest
 #' @import foreach
-#' @import multtest
+
 
 mixedcirc_adjust <- function(input, method="BH", pattern="p_value", verbose=FALSE, ...) {
 
