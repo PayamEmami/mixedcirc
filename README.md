@@ -6,15 +6,23 @@
 
 ## Installation
 
+Install requirements
+
 ```r
-devtools::install_github("PayamEmami/mixedcirc")
+BiocManager::install( c("roxygen2","multcomp", "doFuture", "foreach", "future", "future.apply", "funtimes", "lme4", "lmerTest", "limma", "ggplot2",
+                        "ggsci", "ggpubr", "multtest", "mixOmics", "cowplot", "dplyr","emmeans","MuMIn","GenomicRanges","genomation","performance",
+                        "rmcorr","RhpcBLASctl","aod"))
+```
+
+```r
+devtools::install_github("mixedcirc/mixedcirc")
 library(mixedcirc)
 ```
 
 To install the vignettes, use:
 
 ```r
-devtools::install_github("PayamEmami/mixedcirc", build_vignettes = TRUE)
+devtools::install_github("mixedcirc/mixedcirc", build_vignettes = TRUE)
 library(mixedcirc)
 ```
 

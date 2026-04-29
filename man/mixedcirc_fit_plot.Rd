@@ -2,57 +2,68 @@
 % Please edit documentation in R/mixedcirc_fit_plot.R
 \name{mixedcirc_fit_plot}
 \alias{mixedcirc_fit_plot}
-\title{Plots circadian rhythm}
+\title{Plot circadian rhythm fits from mixedcirc}
 \usage{
 mixedcirc_fit_plot(
   x,
+  y = NULL,
   period = 24,
   min_time = NULL,
   max_time = NULL,
+  n_points = 200,
   plot_title = NULL,
   plot_points = TRUE,
   plot_smooth = FALSE,
   plot_trend = TRUE,
-  xlab = "time",
-  ylab = "Expression"
+  xlab = NULL,
+  ylab = "Expression",
+  fixed_values = list(),
+  expand_vars = NULL,
+  show_expanded = c("none", "linetype", "facet", "label")[1],
+  numeric_method = c("mean", "median")[1],
+  factor_method = c("average_observed", "average_equal", "reference")[1]
 )
 }
 \arguments{
-\item{x}{A class of mixedcirc_fit}
+\item{x}{A `mixedcirc_fit` object.}
 
-\item{period}{The rhythm period. Default: 24}
+\item{y}{Not used.}
 
-\item{min_time}{Minimum time span to do the prediction. If NULL, it will be taken from the fit. Default: NULL}
+\item{period}{Rhythm period. Default 24.}
 
-\item{max_time}{Maximum time span to do the prediction. If NULL, it will be taken from the fit. Default: NULL}
+\item{min_time}{Minimum time for prediction. If NULL, taken from data.}
 
-\item{plot_title}{Title of the plot.}
+\item{max_time}{Maximum time for prediction. If NULL, taken from data.}
 
-\item{plot_points}{whether to plot the individual points or not. Default TRUE}
+\item{n_points}{Number of time points used for the fitted curve.}
 
-\item{plot_smooth}{Whether to plot smoothing line or not. Default: FALSE}
+\item{plot_title}{Plot title. If NULL, derived from result rownames if possible.}
 
-\item{plot_trend}{Whether to plot trend lines or not. Default: TRUE}
+\item{plot_points}{Whether to plot raw points. Default TRUE.}
 
-\item{xlab}{Label on the x-axis}
+\item{plot_smooth}{Whether to add dashed smoothing based on raw data. Default FALSE.}
 
-\item{ylab}{Label on the y-axis}
+\item{plot_trend}{Whether to plot fitted curves. Default TRUE.}
 
-\item{y}{Not used}
+\item{xlab}{X-axis label.}
+
+\item{ylab}{Y-axis label.}
+
+\item{fixed_values}{Named list of covariate values to force in prediction.}
+
+\item{expand_vars}{Character vector of extra covariates to show separately.}
+
+\item{show_expanded}{One of "none", "linetype", "facet", "label".}
+
+\item{numeric_method}{How numeric nuisance covariates are fixed: "mean" or "median".}
+
+\item{factor_method}{How nuisance factor covariates are handled:
+"average_observed", "average_equal", or "reference".}
 }
 \value{
 A ggplot object.
 }
 \description{
-This functions plots circadian rhythm fitted using mixedcirc_detect function.
-}
-\details{
-In case of RRBS, the data is assumed to be log2. The M-values are calculated as Mathylated-Unmethylated
-}
-\examples{
-data("circa_data")
-
-results<-mixedcirc_detect(data_input = circa_data$data_matrix,
-time = circa_data$time,group = circa_data$group,id = circa_data$id,period = 24,verbose = TRUE)
-plot(results[[1]])
+Plots fitted circadian curves from a `mixedcirc_fit` object and can
+automatically fix or average over extra covariates used in the model.
 }

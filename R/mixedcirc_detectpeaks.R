@@ -22,7 +22,6 @@
 #' @return
 #' numeric - the peak time
 #'
-#' @details
 #'
 #'
 #' @import stats
@@ -35,7 +34,6 @@
 #' @import limma
 #' @import lmerTest
 #' @import foreach
-#' @import variancePartition
 #' @import multtest
 
 

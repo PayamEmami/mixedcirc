@@ -2,34 +2,65 @@
 % Please edit documentation in R/mixedcirc_detrend.R
 \name{mixedcirc_detrend}
 \alias{mixedcirc_detrend}
-\title{Removes linear trend from the fitted circadian rhythm}
+\title{Remove linear trend from fitted circadian values}
 \usage{
-mixedcirc_detrend(fit = NULL, per_group = FALSE, verbose = FALSE, ...)
+mixedcirc_detrend(
+  fit = NULL,
+  per_group = FALSE,
+  use_mixed_for_detrend = TRUE,
+  verbose = FALSE,
+  ...
+)
 }
 \arguments{
-\item{fit}{an object of class mixedcirc_fit or mixedcirc_fit_list}
+\item{fit}{An object of class `mixedcirc_fit` or `mixedcirc_fit_list`.}
 
-\item{per_group}{If TRUE, detrending is performed per group (default: FALSE)}
+\item{per_group}{Logical. If `TRUE`, detrending is performed separately within
+each group when group information was used in the original model. Default `FALSE`.}
 
-\item{verbose}{Show information about different stages of the processes. Default FALSE}
+\item{use_mixed_for_detrend}{Logical. If `TRUE`, mixed-model fits are detrended
+using a random intercept for the original subject identifier when possible.
+If the mixed detrending model fails, the function falls back to `lm`.
+Default `TRUE`.}
 
-\item{...}{additionl arguments to the regression function}
+\item{verbose}{Logical. If `TRUE`, progress messages are printed. Default `FALSE`.}
+
+\item{...}{Additional arguments passed to the detrending model (`lm` or `lmer`).}
 }
 \value{
-A matrix of detrended data
+A numeric matrix of detrended fitted values. Rows correspond to rows in the
+original `exp_design` stored inside the fitted object, and columns correspond
+to features.
 }
 \description{
-This function removes linear trend from the fitted values of circadian rhythm.
+This function removes a linear trend from the fitted values obtained from
+a `mixedcirc_fit` or `mixedcirc_fit_list` object. The detrending is performed
+by regressing the fitted values on the original time variable and returning
+the residuals from that regression.
 }
 \details{
-This method will first calculate the fitted values of the provided model followed by fitting a regression of form x~time. The residues of this regression model will be returned as the detrended data.
+The function first tries to use the `.fitted` column stored in `object@exp_design`
+by the updated `mixedcirc_detect()` function. If that column is unavailable or
+unusable, fitted values are extracted directly from the fitted model and aligned
+back to `exp_design`.
+
+It then fits a regression of the form
+\preformatted{
+fitted_value ~ time
 }
-\examples{
-library(mixedcirc)
-data("circa_data")
-results<-mixedcirc_detect(data_input = circa_data$data_matrix,
-                         time = circa_data$time,group = circa_data$group,id = circa_data$id,period = 24,verbose = TRUE)
-detrended<-mixedcirc_detrend(results)
+and returns the residuals from that regression.
 
+If `per_group = TRUE`, the detrending is performed separately within each group.
 
+For mixed-model fits, a detrending model with a random intercept,
+\preformatted{
+fitted_value ~ time + (1 | id)
+}
+is attempted when the original `id` variable is available and
+`use_mixed_for_detrend = TRUE`. If this fails, the function falls back to
+ordinary weighted linear regression.
+
+Stored `.weight` values are only used when they exist and contain at least
+some non-missing values. If `.weight` is entirely `NA` (for example because
+the original model was unweighted), weights are ignored automatically.
 }

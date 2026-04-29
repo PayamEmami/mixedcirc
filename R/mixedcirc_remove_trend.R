@@ -1,452 +1,497 @@
-#' Removes linear trend from the data
+#' Remove linear trend and nuisance covariate effects from the data
 #'
-#' This functions performs trend removing using mixed models.
+#' Fits one regression model per variable and returns the residuals after removing
+#' a non-circadian linear trend. By default, the removed trend is the linear effect
+#' of `time`. Additional nuisance covariates can be supplied through
+#' `formula_extra`.
 #'
-#' @param data_input A numerical matrix or data.frame (N*P) or DGEList where in the rows are samples (N) and the columns are variables (P). If DGEList is provided, regression weights will be estimated!
-#' @param time A vector of length N, showing circadian time of each sample
-#' @param group A character vector of length N. If performing differential circadian rhythm analysis, group is a factor, showing grouping of the samples. Analysis of two groups is supported at this stage! See details!
-#' @param id A vector of length N showing identity of each *unique* sample. See details
-#' @param lm_method The regression method to use. At this stage, `lm` and `lme` are supported! If lm is selected, normal regression will be performed. Default: "lme"
-#' @param obs_weights Regression weights. Default: NULL. See details
-#' @param RRBS If `TRUE`, the data is assumed to be RRBS methylation data. if TRUE, obs_weights must be set. Default FALSE
-#' @param replicate_id If `RRBS` is set to `TRUE`, This has to be a factor showing identity of each unique replicate.
-#' @param remove_trend_separate_groups If TRUE, the detrending is performed separately on each group (default:TRUE)
-#' @param force_weight_estimation If TRUE, variance-mean trend weight estimation will be performed regardless of the data input type (default: FALSE)
-#' @param ncores number of cores
-#' @param verbose Show information about different stages of the processes. Default FALSE
-#' @param ... additionl arguments to the regression function
-#' @export
+#' The function uses the same metadata-driven interface as `mixedcirc_detect()`.
+#' For RRBS / BS-seq style data, the model respects the paired methylated /
+#' unmethylated structure using `scaler` and `replicate_id`.
+#'
+#' @param data_input A numeric matrix, data.frame, or `DGEList` containing the input data.
+#'   Rows correspond to observations and columns correspond to variables when `data_input`
+#'   is a matrix or data.frame. If a `DGEList` is provided, rows correspond to variables and
+#'   columns correspond to samples.
+#' @param meta_input A data.frame or matrix containing the sample-level metadata used to build
+#'   the detrending design. This must include the columns referenced by `time`, `group`, `id`,
+#'   `replicate_id`, and any variables appearing in `formula_extra`.
+#' @param time A character string giving the name of the column in `meta_input` that contains
+#'   time.
+#' @param group Optional character string giving the name of a grouping column in `meta_input`.
+#'   This is not removed by default. If `remove_trend_separate_groups = TRUE`, detrending is
+#'   performed separately within each group.
+#' @param id Optional character string giving the name of the subject identifier column in
+#'   `meta_input`. This is used for random effects when `lm_method = "lme"`. If `NULL`, the
+#'   function switches to ordinary linear regression (`lm`).
+#' @param lm_method Regression framework to use. Must be one of `"lm"` or `"lme"`.
+#'   `"lm"` fits an ordinary linear model. `"lme"` fits a mixed-effects model using
+#'   `lme4::lmer()`. Default is `"lme"`.
+#' @param formula_extra Optional formula containing additional nuisance fixed effects to remove.
+#'   The variables in this formula must be column names in `meta_input`. For RRBS data, these
+#'   extra terms are automatically interacted with `scaler`.
+#' @param random_effect_type Type of random-effect structure to use when `lm_method = "lme"`.
+#'   Must be one of `"none"` or `"mesor"`. `"none"` adds no random effect and `"mesor"` adds
+#'   a random intercept `(1 | id)`. Default is `"mesor"`.
+#' @param obs_weights Optional matrix of observational weights with the same dimensions as
+#'   `data_input` when `data_input` is a matrix or data.frame. Each column corresponds to one
+#'   variable and each row to one observation. For RRBS input, `obs_weights` is required unless
+#'   weights are estimated internally from a `DGEList` or by setting
+#'   `force_weight_estimation = TRUE`.
+#' @param RRBS Logical. If `TRUE`, the data are assumed to represent RRBS / BS-seq style
+#'   methylation data, with each biological observation represented by two consecutive rows:
+#'   methylated count followed by unmethylated count. In this mode, `replicate_id` must be
+#'   provided. Default is `FALSE`.
+#' @param replicate_id Character string giving the name of the column in `meta_input` that
+#'   identifies unique technical / replicate observations for RRBS data.
+#' @param remove_trend_separate_groups Logical. If `TRUE` and group information is provided,
+#'   detrending is performed separately within each group. Default is `TRUE`.
+#' @param force_weight_estimation Logical. If `TRUE`, weights are estimated internally using
+#'   `voom()` or `voomWithDreamWeights()` even when `data_input` is not a `DGEList`.
+#'   Default is `FALSE`.
+#' @param ncores Number of cores to use for parallel processing. Default is `1`.
+#' @param verbose Logical. If `TRUE`, progress messages are printed. Default is `FALSE`.
+#' @param ... Additional arguments passed to the underlying model-fitting function.
+#'
+#' @return
+#' A numeric matrix of detrended values. Rows correspond to observations and columns correspond
+#' to variables. The values are the residuals after removing the fitted trend model.
+#'
+#' @details
+#' For non-RRBS data, the default detrending model is:
+#' \preformatted{
+#' measure ~ 1 + time
+#' }
+#'
+#' If `formula_extra` is supplied, its terms are appended to the model. These terms are treated
+#' as nuisance covariates to remove.
+#'
+#' For RRBS data, the default detrending model is:
+#' \preformatted{
+#' measure ~ 0 + replicate_id + scaler + time:scaler
+#' }
+#'
+#' If `formula_extra` is supplied for RRBS data, the extra terms are automatically interacted
+#' with `scaler`, so that the nuisance structure is removed on the methylation scale.
+#'
+#' If `remove_trend_separate_groups = TRUE`, the detrending model is fit separately within each
+#' group. Otherwise, a single common detrending model is fit across all groups. Group itself is
+#' not removed unless the user explicitly includes it in `formula_extra`.
+#'
+#' If weights are not supplied directly, they may be estimated from count-like data using
+#' `limma::voom()` for ordinary linear models or `voomWithDreamWeights()`
+#' for mixed-effects models.
+#'
 #' @examples
 #' data("circa_data")
 #'
-#'results<-mixedcirc_remove_trend(data_input = circa_data$data_matrix,
-#'time = circa_data$time,group = circa_data$group,id = circa_data$id,verbose = TRUE)
-#'
-#' @return
-#' A data.frame
-#'
-#' @details
-#' For each variable we use the following mode:
-#' In this part we do rhythmicity analysis on individual variables using the following model:
-#' measure ~time
-#' The residulas will be outputed
-#'
-#' `obs_weights` is a matrix of size N*P where each colum shows the weights for all the observations for that particular variable.
-#'
-#' If `RRBS` is set to `TRUE`, we assume that the data is RRBS methylation. In this case, the regression will be change to suit this type of analysis.
-#' In BS-seq methylation analysis, each DNA sample generates two counts, a count of methylated reads and a count of unmethylated reads, for each genomic locus for each sample.
-#' The samples are assumed to be ordered as methylated and then unmethylated. For example, given the samples are A1_1, A1_2,A2_1, and B1_1.
-#' The rows in `data_input` are assumed to be ordered as  A1_1_methylated,A1_1_unmethylated, A1_2_methylated,A1_2_unmethylated,A2_1_methylated,A2_1_unmethylated,B1_1_methylated,B1_1_unmethylated.
-#' In this setting, `replicate_id` must show the unique identify of each replicate (in contrast to unique biological sample). This means for example above,
-#' `replicate_id` would be A1_1,A1_2,A2_1,B1_1.
-#' Please note that if `RRBS` is set to `TRUE`, `obs_weights` must be set. We provide a starting function to estimate these weights
-#' (\code{\link{mixedcirc_rrbs_voom}}) for class of `methylBaseDB` from `methylKit` package. Alternatively, one can use `voomWithDreamWeights` with correct formula.
-#'
+#' detrended <- mixedcirc_remove_trend(
+#'   data_input = circa_data$data_matrix,
+#'   meta_input = data.frame(
+#'     time = circa_data$time,
+#'     group = circa_data$group,
+#'     id = circa_data$id
+#'   ),
+#'   time = "time",
+#'   group = "group",
+#'   id = "id",
+#'   verbose = TRUE
+#' )
 #'
 #' @import stats
-#' @import multcomp
+#' @import methods
 #' @import doFuture
 #' @import future
-#' @import nlme
-#' @import future.apply
+#' @import foreach
 #' @import lme4
 #' @import limma
-#' @import lmerTest
-#' @import foreach
-#' @import variancePartition
 #' @import parallel
-
-mixedcirc_remove_trend <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
-                                   lm_method=c("lm","lme")[2],
-                                   obs_weights=NULL,RRBS=FALSE,
-                                   replicate_id=NULL,remove_trend_separate_groups=TRUE,force_weight_estimation=FALSE,ncores=1,verbose=FALSE,...){
-
-
+#' @import BiocParallel
+#' @export
+mixedcirc_remove_trend <- function(
+    data_input = NULL,
+    meta_input = NULL,
+    time = NULL,
+    group = NULL,
+    id = NULL,
+    lm_method = c("lm", "lme")[2],
+    formula_extra = NULL,
+    random_effect_type = c("none", "mesor")[2],
+    obs_weights = NULL,
+    RRBS = FALSE,
+    replicate_id = NULL,
+    remove_trend_separate_groups = TRUE,
+    force_weight_estimation = FALSE,
+    ncores = 1,
+    verbose = FALSE,
+    ...
+) {
 
   registerDoFuture()
-  if(ncores>1)
-  {
-    plan(multisession,workers = ncores)
-  }else{
+  if (ncores > 1) {
+    plan(multisession, workers = ncores)
+  } else {
     plan(sequential)
   }
 
-  if(RRBS==TRUE)
-  {
-    if(is.null(obs_weights))
-    {
-      stop("For RRBS data, obs_weights must be set")
-    }
-    if(is.null(replicate_id))
-    {
-      stop("For RRBS data, replicate_id must be set")
-    }
+  on.exit({
+    future:::ClusterRegistry("stop")
+  }, add = TRUE)
 
+  if (verbose) cat("Checking inputs ...\n")
+
+  # ---------------------------------------------------------
+  # Input checks
+  # ---------------------------------------------------------
+  if (is.null(data_input)) {
+    stop("data_input must be a data frame, matrix, or DGEList")
   }
 
-  if(verbose)cat("Checking inputs ...\n")
-  # checking inputs
-  if(is.null(data_input))
-    stop("data_input must be a data frame or matrix")
-
-  if((!is.matrix(data_input) | !is.matrix(data_input)) & !is(data_input,"DGEList"))
-    stop("data_input must be a data frame or matrix")
-
-  if(is.null(time))
-    stop("time must be a vector")
-
-  if(RRBS==TRUE)
-  {
-    if(length(time)!=length(replicate_id))
-    {
-      stop("time must have the same length as replicate_id")
-    }
-    time <- rep(time,each=2)
+  if (is.null(meta_input)) {
+    stop("meta_input must be a data frame or matrix")
   }
 
-
-
-  if(!is(data_input,"DGEList"))
-  {
-    if(length(time)!=nrow(data_input))
-      stop("The length of *time* is not equal to the number of rows of *data_input*")
-  }else{
-    if(length(time)!=ncol(data_input))
-      stop("The length of *time* is not equal to the number of rows of *data_input*")
+  if (!is.matrix(data_input) && !is.data.frame(data_input) && !is(data_input, "DGEList")) {
+    stop("data_input must be a data frame, matrix, or DGEList")
   }
 
+  if (!is.matrix(meta_input) && !is.data.frame(meta_input)) {
+    stop("meta_input must be a data frame or matrix")
+  }
 
-  if(!is.null(group))
-  {
+  meta_input <- as.data.frame(meta_input)
 
-    if(RRBS==TRUE)
-    {
-      if(length(group)!=length(replicate_id))
-      {
-        stop("time must have the same length as replicate_id")
+  if (is.null(time) || !time %in% colnames(meta_input)) {
+    stop("time must be a column name in meta_input")
+  }
+
+  if (!is(data_input, "DGEList")) {
+    if (RRBS) {
+      if (nrow(meta_input) * 2 != nrow(data_input)) {
+        stop("For RRBS, meta_input must have one row per biological sample, so nrow(data_input) must equal 2 * nrow(meta_input)")
       }
-      group <- rep(group,each=2)
+    } else {
+      if (nrow(meta_input) != nrow(data_input)) {
+        stop("The number of rows of meta_input must equal the number of rows of data_input")
+      }
     }
-
-
-    if(!is(data_input,"DGEList"))
-    {
-      if(length(group)!=nrow(data_input))
-        stop("The length of *group* is not equal to the number of rows of *data_input*")
-    }else{
-      if(length(group)!=ncol(data_input))
-        stop("The length of *group* is not equal to the number of rows of *data_input*")
+  } else {
+    if (nrow(meta_input) != ncol(data_input)) {
+      stop("The number of rows of meta_input must equal the number of columns of data_input for DGEList input")
     }
+  }
 
-
-
-    if(length(unique(group))>2)
-      stop("We are only supporting two groups at this stage!")
-
+  multiple_groups <- FALSE
+  if (!is.null(group)) {
+    if (!group %in% colnames(meta_input)) {
+      stop("group must be the name of a column in meta_input")
+    }
     multiple_groups <- TRUE
-  }else{
-    warning("No group information was provided! Skipping differential analysis!")
-    multiple_groups <- FALSE
-    group<-"dummy"
+  } else {
+    meta_input$dummy_group <- "all"
+    group <- "dummy_group"
   }
 
-  if(!is.null(id))
-  {
-    if(RRBS==TRUE)
-    {
-      if(length(id)!=length(replicate_id))
-      {
-        stop("time must have the same length as replicate_id")
-      }
-      id <- rep(id,each=2)
+  if (!is.null(id)) {
+    if (!id %in% colnames(meta_input)) {
+      stop("id must be the name of a column in meta_input")
     }
-
-    if(!is(data_input,"DGEList"))
-    {
-      if(length(id)!=nrow(data_input))
-        stop("The length of *id* is not equal to the number of rows of *data_input*")
-    }else{
-      if(length(id)!=ncol(data_input))
-        stop("The length of *id* is not equal to the number of rows of *data_input*")
-    }
-
-
-  }else{
+  } else {
     warning("No id information was provided! Switching to normal linear regression!")
     lm_method <- "lm"
-    id<-"dummy"
+    meta_input$dummy_id <- "all"
+    id <- "dummy_id"
   }
 
+  lm_method <- match.arg(lm_method, c("lm", "lme"))
+  random_effect_type <- match.arg(random_effect_type, c("none", "mesor"))
 
-  lm_method <- match.arg(lm_method,c("lm","lme"))
+  if (RRBS) {
+    if (is.null(replicate_id) || !replicate_id %in% colnames(meta_input)) {
+      stop("For RRBS data, replicate_id must be set and must be a column name in meta_input")
+    }
 
-  if(!is(data_input,"DGEList"))
-    eset <- data_input[,,drop=F]
-  else
+    if (is.null(obs_weights) && !is(data_input, "DGEList") && !force_weight_estimation) {
+      stop("For RRBS data, obs_weights must be provided unless weights are estimated internally from a DGEList or by setting force_weight_estimation = TRUE")
+    }
+  }
+
+  if (!is.null(obs_weights) && !is(data_input, "DGEList")) {
+    if (!all(dim(obs_weights) == dim(data_input))) {
+      stop("obs_weights must be the same size as data_input")
+    }
+  }
+
+  if (!is.null(formula_extra)) {
+    if (!inherits(formula_extra, "formula")) {
+      stop("formula_extra must be a formula")
+    }
+
+    missing_formula_extra_terms <- setdiff(all.vars(formula_extra), colnames(meta_input))
+    if (length(missing_formula_extra_terms) > 0) {
+      stop(
+        "formula_extra terms must be column names in meta_input: ",
+        paste(missing_formula_extra_terms, collapse = ", ")
+      )
+    }
+  }
+
+  if (!is(data_input, "DGEList")) {
+    eset <- data_input[, , drop = FALSE]
+  } else {
     eset <- NA
-
-
-  if(verbose)cat("Building experiment ...\n")
-  if(RRBS==TRUE)
-  {
-    exp_design<-cbind.data.frame(time=as.numeric(time),group=as.factor(group),rep=as.character(id),
-                                 replicate_id=rep(replicate_id,each=2),scaler=rep(c(1,0),(length(id)/2)))
-  }else{
-    exp_design<-cbind.data.frame(time=as.numeric(time),group=as.factor(group),rep=as.character(id))
   }
 
+  # ---------------------------------------------------------
+  # Build experiment design
+  # ---------------------------------------------------------
+  if (verbose) cat("Building experiment ...\n")
 
-  if(!is.factor(exp_design$group))stop("Group must be a factor!")
+  exp_design <- meta_input
 
-
-  if(!is.null(obs_weights) & !is(data_input,"DGEList"))
-  {
-    if(!all(dim(obs_weights)==dim(data_input)))
-      stop("obs_weights must be the same size as data_input!")
+  if (RRBS) {
+    exp_design <- meta_input[rep(seq_len(nrow(meta_input)), each = 2), , drop = FALSE]
+    exp_design$scaler <- rep(c(1, 0), nrow(meta_input))
   }
 
+  exp_design[, group] <- factor(exp_design[, group])
 
-  if(multiple_groups==TRUE)
-  {
-    if(verbose)cat("Performing multigroup detrending ...\n")
+  # ---------------------------------------------------------
+  # Helpers
+  # ---------------------------------------------------------
+  build_random_term <- function(random_effect_type, id) {
+    if (random_effect_type == "none") return(NULL)
+    if (random_effect_type == "mesor") return(paste0("(1 | ", id, ")"))
+    stop("Unsupported random_effect_type")
+  }
 
-    group_id <- base::levels(exp_design$group)
-
-
-    if(RRBS==TRUE)
-    {
-
-      design <- stats::model.matrix(~ replicate_id+ time:scaler ,
-                                    data = exp_design)
-
-      design_s <- stats::model.matrix(~replicate_id+  time:scaler,
-                                      data = exp_design)
-
-    }else{
-
-      design <- stats::model.matrix(~ time,
-                                    data = exp_design)
-
-      design_s <- stats::model.matrix(~  time,
-                                      data = exp_design)
+  append_extra_terms <- function(base_formula, formula_extra, RRBS = FALSE) {
+    if (is.null(formula_extra)) {
+      return(base_formula)
     }
 
+    rhs1 <- paste(deparse(base_formula[[3]]), collapse = "")
 
+    if (RRBS) {
+      formula_extra_mod <- update(formula_extra, . ~ scaler:(.))
+      rhs2 <- paste(deparse(formula_extra_mod[[3]]), collapse = "")
+    } else {
+      rhs2 <- paste(deparse(formula_extra[[2]]), collapse = "")
+    }
 
-    design_t<-design
+    as.formula(
+      paste(all.vars(base_formula)[1], "~", paste(rhs1, rhs2, sep = " + "))
+    )
+  }
 
-    colnames(design) <- gsub("group", "", colnames(design))
-    colnames(design) <- gsub(":", "_", colnames(design))
+  add_random_effect <- function(formula_fixed, rand_term) {
+    if (is.null(rand_term)) {
+      return(formula_fixed)
+    }
 
-    if(is(data_input,"DGEList")| force_weight_estimation==TRUE){
-      if(verbose)cat("Estimating weights for the input variables ...\n")
+    rhs <- paste(paste(deparse(formula_fixed[[3]]), collapse = ""), rand_term, sep = " + ")
+    as.formula(paste(all.vars(formula_fixed)[1], "~", rhs))
+  }
 
-      if(lm_method=="lm")
-      {
-        if(verbose)cat("lm_method is lm, voom will be used ...\n")
-        voom_res<-limma::voom(data_input, design, plot=FALSE)
-      }else{
-        if(RRBS==TRUE)
-        {
+  get_model_matrix_formula <- function(formula_fixed) {
+    as.formula(paste("~", paste(deparse(formula_fixed[[3]]), collapse = "")))
+  }
 
-          formula<-~ replicate_id + time:scaler +(1 | rep)
-        }else{
-          formula<-~  time +(1 | rep)
-        }
-
-        voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design,BPPARAM = BiocParallel::SnowParam(workers = ncores))
+  safe_fit_model <- function(formula_use, data_use, weights_use, lm_method, ...) {
+    if (lm_method == "lm") {
+      if (is.null(weights_use)) {
+        stats::lm(formula_use, data = data_use, ...)
+      } else {
+        stats::lm(formula_use, data = data_use, weights = weights_use, ...)
       }
-      obs_weights <-t(voom_res$weights)
-      eset<-t(voom_res$E)
+    } else {
+      if (is.null(weights_use)) {
+        lme4::lmer(formula_use, data = data_use, ...)
+      } else {
+        lme4::lmer(formula_use, data = data_use, weights = weights_use, ...)
+      }
+    }
+  }
+
+  fill_residuals_back <- function(model_obj, data_rows) {
+    out <- rep(NA_real_, length(data_rows))
+    mf <- stats::model.frame(model_obj)
+
+    mf_rows <- rownames(mf)
+    data_rows <- as.character(data_rows)
+
+    if (is.null(mf_rows) || is.null(data_rows)) {
+      if (length(stats::residuals(model_obj)) != length(out)) {
+        stop("Could not align model residuals back to the supplied data rows.")
+      }
+      out <- stats::residuals(model_obj)
+      return(out)
     }
 
+    pos <- match(mf_rows, data_rows)
 
-    chunks <- parallel::splitIndices(ncol(eset), min(ncol(eset),  ncores))
-    if(verbose)cat("Spliting data to",length(chunks)," chunks...\n")
+    if (any(is.na(pos))) {
+      stop("Could not align model-frame rows back to the supplied data rows.")
+    }
 
-    res<-foreach(chIndx=chunks)%dopar%
-      {
+    out[pos] <- stats::residuals(model_obj)
+    out
+  }
 
-        outputs_fn<-foreach(i=chIndx)%do%{
+  # ---------------------------------------------------------
+  # Build detrending formula
+  # ---------------------------------------------------------
+  if (verbose) cat("Building detrending formula ...\n")
 
+  if (RRBS) {
+    formula_input <- as.formula(
+      paste0(
+        "measure ~ 0 + ", replicate_id,
+        " + scaler + ", time, ":scaler"
+      )
+    )
+  } else {
+    formula_input <- as.formula(
+      paste0("measure ~ 1 + ", time)
+    )
+  }
 
-          if(verbose)cat("Processing variable",i,"...\n")
+  formula_fixed <- append_extra_terms(
+    base_formula = formula_input,
+    formula_extra = formula_extra,
+    RRBS = RRBS
+  )
 
-          data_grouped<-cbind(measure=as.numeric(eset[,i]),exp_design)
-          if(!remove_trend_separate_groups){
+  formula_with_random <- formula_fixed
+  if (lm_method == "lme") {
+    rand_term <- build_random_term(
+      random_effect_type = random_effect_type,
+      id = id
+    )
+    formula_with_random <- add_random_effect(formula_fixed, rand_term)
+  }
 
+  if (lm_method == "lm" && random_effect_type != "none") {
+    warning("random_effect_type was ignored because lm_method = 'lm'")
+  }
 
-            if(verbose)cat("Fitting the model for variable",i,"...\n")
-            if(RRBS==TRUE)
-            {
+  if (verbose) {
+    cat("Final detrending formula:\n")
+    print(formula_with_random)
+  }
 
-              suppressMessages({
-                model_ln<-switch(lm_method,
-                                 lm = lm(measure ~replicate_id+ time:scaler ,data=data_grouped,weights = obs_weights[,i],...),
-                                 lme = lme4::lmer(measure~ replicate_id+ time:scaler +(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
-              })
-            }else{
-              suppressMessages({
-                model_ln<-switch(lm_method,
-                                 lm = lm(measure ~ time ,data=data_grouped,weights = obs_weights[,i],...),
-                                 lme = lme4::lmer(measure~  time +(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
-              })
-            }
+  model_matrix_formula <- get_model_matrix_formula(formula_fixed)
+  model_matrix <- stats::model.matrix(model_matrix_formula, exp_design)
 
+  # ---------------------------------------------------------
+  # Weight estimation
+  # ---------------------------------------------------------
+  if (is(data_input, "DGEList") || force_weight_estimation) {
+    if (verbose) cat("Estimating weights for the input variables ...\n")
 
-            data_grouped$measure[!is.na( data_grouped$measure)]<-residuals(model_ln)
-          }else{
-            # single_rhythm A
-            if(RRBS==TRUE)
-            {
-              suppressMessages({
-                model_ln_A<-switch(lm_method,
-                                   lm = lm(measure ~replicate_id+ time:scaler ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
-                                   lme = lmerTest::lmer(measure~ replicate_id+ time:scaler +(1 | rep) ,
-                                                        data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
-              })
-            }else{
-              suppressMessages({
-                model_ln_A<-switch(lm_method,
-                                   lm = lm(measure ~ time  ,data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...),
-                                   lme = lmerTest::lmer(measure~  time +(1 | rep) ,
-                                                        data=data_grouped[data_grouped$group==group_id[1],],weights = obs_weights[data_grouped$group==group_id[1],i],...))
-              })
-            }
+    if (lm_method == "lm") {
+      if (verbose) cat("lm_method is lm, voom will be used ...\n")
+      voom_res <- limma::voom(data_input, model_matrix, plot = FALSE)
+    } else {
+      voom_res <- voomWithDreamWeights(
+        data_input,
+        formula = formula_with_random,
+        data = exp_design,
+        BPPARAM = BiocParallel::SnowParam(workers = ncores)
+      )
+    }
 
+    obs_weights <- t(voom_res$weights)
+    eset <- t(voom_res$E)
+  }
 
-            data_grouped$measure[data_grouped$group==group_id[1] & !is.na(data_grouped$measure)]<-residuals(model_ln_A)
+  feature_names <- colnames(eset)
+  if (length(feature_names) == 0) {
+    feature_names <- seq_len(ncol(eset))
+  }
 
-            # single_rhythm B
-            if(RRBS==TRUE)
-            {
-              suppressMessages({
-                model_ln_B<-switch(lm_method,
-                                   lm = lm(measure ~replicate_id + time:scaler ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
-                                   lme = lmerTest::lmer(measure~ replicate_id + time:scaler +(1 | rep),data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
-              })
-            }else{
-              suppressMessages({
-                model_ln_B<-switch(lm_method,
-                                   lm = lm(measure ~ time  ,data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...),
-                                   lme = lmerTest::lmer(measure~  time +(1 | rep),data=data_grouped[data_grouped$group==group_id[2],],weights = obs_weights[data_grouped$group==group_id[2],i],...))
-              })
-            }
+  chunks <- parallel::splitIndices(ncol(eset), min(ncol(eset), ncores))
+  if (verbose) cat("Splitting data into", length(chunks), "chunks ...\n")
 
-            data_grouped$measure[data_grouped$group==group_id[2] & !is.na(data_grouped$measure)]<-residuals(model_ln_B)
+  # ---------------------------------------------------------
+  # Main fitting loop
+  # ---------------------------------------------------------
+  res <- foreach(chIndx = chunks) %dopar% {
 
+    outputs_fn <- foreach(i = chIndx) %do% {
+
+      if (verbose) cat("Processing variable", i, "...\n")
+
+      data_grouped <- cbind(
+        measure = as.numeric(eset[, i]),
+        exp_design
+      )
+      data_grouped <- as.data.frame(data_grouped)
+
+      if (is.null(rownames(data_grouped)) ||
+          anyNA(rownames(data_grouped)) ||
+          any(rownames(data_grouped) == "") ||
+          anyDuplicated(rownames(data_grouped))) {
+        rownames(data_grouped) <- paste0("row_", seq_len(nrow(data_grouped)))
+      }
+
+      weights_i <- NULL
+      if (!is.null(obs_weights)) {
+        weights_i <- obs_weights[, i]
+      }
+
+      residual_out <- rep(NA_real_, nrow(data_grouped))
+
+      if (multiple_groups && remove_trend_separate_groups) {
+        group_levels <- unique(as.character(data_grouped[, group]))
+
+        for (gr in group_levels) {
+          idx <- which(as.character(data_grouped[, group]) == gr)
+          data_sub <- data_grouped[idx, , drop = FALSE]
+          weights_sub <- if (!is.null(weights_i)) weights_i[idx] else NULL
+
+          if (is.null(rownames(data_sub)) ||
+              anyNA(rownames(data_sub)) ||
+              any(rownames(data_sub) == "") ||
+              anyDuplicated(rownames(data_sub))) {
+            rownames(data_sub) <- rownames(data_grouped)[idx]
           }
 
-          data_grouped$measure
+          model_ln <- suppressMessages(
+            safe_fit_model(
+              formula_use = formula_with_random,
+              data_use = data_sub,
+              weights_use = weights_sub,
+              lm_method = lm_method,
+              ...
+            )
+          )
+
+          residual_out[idx] <- fill_residuals_back(model_ln, rownames(data_sub))
         }
-        outputs_fn
+      } else {
+        model_ln <- suppressMessages(
+          safe_fit_model(
+            formula_use = formula_with_random,
+            data_use = data_grouped,
+            weights_use = weights_i,
+            lm_method = lm_method,
+            ...
+          )
+        )
+
+        residual_out <- fill_residuals_back(model_ln, rownames(data_grouped))
       }
 
-
-
-
-    future:::ClusterRegistry("stop")
-
-    results_out<-(do.call("cbind",lapply(rapply(res, enquote, how="unlist"), eval)))
-    colnames(results_out)<-colnames(eset)
-    rownames(results_out)<-rownames(eset)
-    return(results_out)
-  }else{
-    if(verbose)cat("Performing single group inference","...\n")
-
-    if(verbose)cat("Preparing design matrix ...\n")
-
-    if(RRBS==TRUE)
-    {
-
-      design <- stats::model.matrix(~ replicate_id + time:scaler,
-                                    data = exp_design)
-
-      design_s <- stats::model.matrix(~replicate_id+  time:scaler,
-                                      data = exp_design)
-
-    }else{
-
-      design <- stats::model.matrix(~ time ,
-                                    data = exp_design)
-
-      design_s <- stats::model.matrix(~  time,
-                                      data = exp_design)
+      residual_out
     }
 
-
-    design_t<-design
-
-    colnames(design) <- gsub(":", "_", colnames(design))
-
-    if(is(data_input,"DGEList")| force_weight_estimation==TRUE){
-      if(verbose)cat("Estimating weights for the input variables ...\n")
-
-      if(lm_method=="lm")
-      {
-        if(verbose)cat("lm_method is lm, voom will be used ...\n")
-        voom_res<-limma::voom(data_input, design, plot=FALSE)
-      }else{
-
-        if(RRBS==TRUE)
-        {
-
-          formula<-~ replicate_id  + time:scaler+(1 | rep)
-        }else{
-          formula<-~  time +(1 | rep)
-        }
-
-
-        voom_res<-variancePartition::voomWithDreamWeights(data_input,formula = formula,data = exp_design,BPPARAM = BiocParallel::SnowParam(workers = ncores))
-      }
-      obs_weights <-t(voom_res$weights)
-      eset<-t(voom_res$E)
-    }
-
-    chunks <- parallel::splitIndices(ncol(eset), min(ncol(eset),  ncores))
-    if(verbose)cat("Spliting data to",length(chunks)," chunks...\n")
-
-    res<-foreach(chIndx=chunks)%dopar%
-      {
-
-        outputs_fn<-foreach(i=chIndx)%do%{
-
-
-
-          data_grouped<-cbind(measure=as.numeric(eset[,i]),exp_design)
-
-
-          if(RRBS==TRUE)
-          {
-            suppressMessages({
-              model_ln<-switch(lm_method,
-                               lm = lm(measure ~replicate_id + time:scaler ,data=data_grouped,weights = obs_weights[,i],...),
-                               lme = lme4::lmer(measure~ replicate_id +time:scaler +(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
-            })
-          }else{
-            suppressMessages({
-              model_ln<-switch(lm_method,
-                               lm = lm(measure ~time ,data=data_grouped,weights = obs_weights[,i],...),
-                               lme = lme4::lmer(measure~ time +(1 | rep) ,data=data_grouped,weights = obs_weights[,i],...))
-            })
-          }
-
-          data_grouped$measure[!is.na(data_grouped$measure)]<-residuals(model_ln)
-          data_grouped$measure
-        }
-
-        outputs_fn
-      }
-
-    future:::ClusterRegistry("stop")
-
+    outputs_fn
   }
-  results_out<-(do.call("cbind",lapply(rapply(res, enquote, how="unlist"), eval)))
-  colnames(results_out)<-colnames(eset)
-  rownames(results_out)<-rownames(eset)
-  return(results_out)
 
+  results_out <- do.call("cbind", lapply(rapply(res, enquote, how = "unlist"), eval))
+  colnames(results_out) <- feature_names
+  rownames(results_out) <- rownames(eset)
+
+  results_out
 }
-
-
-

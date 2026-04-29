@@ -2,82 +2,130 @@
 % Please edit documentation in R/mixedcirc_integrate.R
 \name{mixedcirc_integrate}
 \alias{mixedcirc_integrate}
-\title{Circadian rhythm integration}
+\title{Integrate circadian datasets using SGCCA}
 \usage{
 mixedcirc_integrate(
   data_input = NULL,
+  meta_input = NULL,
   time = NULL,
   group = NULL,
   id = NULL,
   period = 24,
   ncomp = 2,
   variables = NULL,
-  lm_method = c("lm", "lme", "nlme")[2],
-  f_test = c("multcomp_f", "multcomp_chi", "Satterthwaite", "Kenward-Roger")[3],
-  abs_phase = TRUE,
   decompose = FALSE,
   center = TRUE,
   scale = FALSE,
   merge = FALSE,
   no_correlation = FALSE,
   no_interaction = FALSE,
-  max.iter = max.iter,
-  verbose = FALSE,
-  ...
+  max.iter = 1e+05,
+  verbose = FALSE
 )
 }
 \arguments{
-\item{data_input}{A named list of numerical matrices or data.frames (N*P) where in the rows are samples (N) and the columns are variables (P). Each element of the list is a data set}
+\item{data_input}{A named list of numeric matrices or data.frames. Each element
+is one dataset, with rows corresponding to samples and columns to variables.
+All datasets must have the same number of rows.}
 
-\item{group}{A character vector of length N. If performing differential circadian rhythm analysis, group is a factor, showing grouping of the samples. Analysis of two groups is supported at this stage! See details!}
+\item{meta_input}{A data.frame or matrix containing sample-level metadata.
+Must include the columns referenced by `time`, `group`, and `id` when used.}
 
-\item{id}{A vector of length N showing identity of each *unique* sample. See details}
+\item{time}{A character string giving the name of the column in `meta_input`
+that contains time.}
 
-\item{period}{Period of circadian rhythm. Default: 24}
+\item{group}{Optional character string giving the name of the grouping column
+in `meta_input`. If supplied, a group-design block is added.}
 
-\item{ncomp}{Number of components. If set to 0, maximum number of possible components will be calculated (default: 2)}
+\item{id}{Optional character string giving the name of the subject identifier
+column in `meta_input`. Used only when `decompose = TRUE`.}
 
-\item{variables}{A named list where in each element (one per data set) is a vector of length ncomp. Each element of the vector must be the number of variables retained on that particular component}
+\item{period}{Numeric scalar specifying the assumed period. Default `24`.}
 
-\item{decompose}{decomposes the Within variation in the data set with respect to id (default: FALSE)}
+\item{ncomp}{Number of SGCCA components to estimate. Must be a positive integer.
+Default `2`.}
 
-\item{center}{Centers the columns of each data set to zero}
+\item{variables}{Optional named list controlling the number of variables kept
+per component in each dataset. Each element should be an integer vector of
+length `ncomp`. Names must match `data_input`.}
 
-\item{scale}{scale each data set by dividing each column by its standard deviation}
+\item{decompose}{Logical. If `TRUE`, within-subject variation is extracted for
+each dataset before integration.
+Requires `id`. Default `FALSE`.}
 
-\item{merge}{If TRUE, the groups and the type will be merge in a single matrix for regression (default: FALSE)}
+\item{center}{Logical. If `TRUE`, columns of each dataset are centered.
+Default `TRUE`.}
 
-\item{no_correlation}{If TRUE, zero covariance will be set between time and groups (default: FALSE)}
+\item{scale}{Logical. If `TRUE`, columns of each dataset are scaled to unit
+variance. Default `FALSE`.}
 
-\item{no_interaction}{If TRUE, no interaction between groups and time is assumed. (default FALSE)}
+\item{merge}{Logical. If `TRUE`, group and rhythm design variables are merged
+into a single design block. Default `FALSE`.}
 
-\item{max.iter}{Maximum number of iteration of model (default: 100000)}
+\item{no_correlation}{Logical. If `TRUE` and group information is provided in
+separate blocks, the covariance between the group-design block and the
+rhythm-design block is fixed to zero. Default `FALSE`.}
 
-\item{verbose}{Show information about different stages of the processes. Default FALSE}
+\item{no_interaction}{Logical. If `TRUE`, no group-specific rhythm interaction
+is encoded. In grouped analysis, rhythm is then represented by common
+`inphase` and `outphase` terms and group is represented separately.
+Default `FALSE`.}
 
-\item{...}{additionl arguments to the regression function}
+\item{max.iter}{Maximum number of SGCCA iterations. Default `100000`.}
+
+\item{verbose}{Logical. If `TRUE`, progress messages are printed. Default `FALSE`.}
 }
 \value{
-A class of \code{\link{mixedcirc_integration}}.
+An object of class `mixedcirc_integration` containing:
+\describe{
+  \item{partial}{A named list of partial block scores, one matrix per dataset.}
+  \item{average}{A matrix of average sample scores across biological datasets.}
+  \item{loadings}{A named list of loading matrices, one per dataset.}
+  \item{model}{The fitted model object.}
+}
 }
 \description{
-This functions performs circadian rhythm data integration using canonical correlations.
+Performs multi-block data integration using sparse generalized canonical
+correlation analysis (SGCCA). The biological datasets are
+integrated together with one or two design blocks representing circadian
+rhythm and, optionally, group structure.
 }
 \details{
-This method is based on SGCCA analysis
-All the data sets will be correlated together with the linearized rhythm and the group
-The resulting partial or average scores can be used in \code{\link{mixedcirc_detect}} to perform differential circadian rhythm analysis using mixed models
-The loadings can be used for example to cluster the corresponding variables across different domains
-The scores can be retrieved using \code{\link{mixedcirc_getscore}}
+The function augments the biological datasets with design information derived
+from the sample metadata:
+
+\deqn{inphase = \cos(2\pi t / period)}
+\deqn{outphase = \sin(2\pi t / period)}
+
+If group information is provided and `no_interaction = FALSE`, the rhythm
+block uses group-specific circadian terms. If `no_interaction = TRUE`, the
+rhythm block is shared across groups and the group structure is represented
+separately.
+
+The resulting partial or average scores can be used as integrated features in
+downstream analyses such as `mixedcirc_detect()`.
 }
 \examples{
 library(mixedcirc)
 data("circa_data")
-data_input<-list(a=circa_data$data_matrix[,1:3],b=circa_data$data_matrix[,3:7])
-results<-mixedcirc_integrate(data_input,time = circa_data$time,group = circa_data$group,id = circa_data$id)
-data_matrix<-mixedcirc_getscore(results,type = "partial",merge = T)
-fitted_data<-mixedcirc_detect(data_matrix,time = circa_data$time,group = circa_data$group,id = circa_data$id)
-plot(fitted_data[1])
 
+data_input <- list(
+  a = circa_data$data_matrix[, 1:3],
+  b = circa_data$data_matrix[, 4:7]
+)
+
+results <- mixedcirc_integrate(
+  data_input = data_input,
+  meta_input = data.frame(
+    time = circa_data$time,
+    group = circa_data$group,
+    id = circa_data$id
+  ),
+  time = "time",
+  group = "group",
+  id = "id"
+)
+
+score_matrix <- mixedcirc_getscore(results, type = "average")
 
 }

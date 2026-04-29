@@ -7,7 +7,7 @@
 mixedcirc_adjust(
   input,
   method = "BH",
-  pattern = "p_value",
+  pattern = "p.value",
   verbose = FALSE,
   ...
 )

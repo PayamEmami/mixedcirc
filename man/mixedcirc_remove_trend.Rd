@@ -2,14 +2,17 @@
 % Please edit documentation in R/mixedcirc_remove_trend.R
 \name{mixedcirc_remove_trend}
 \alias{mixedcirc_remove_trend}
-\title{Removes linear trend from the data}
+\title{Remove linear trend and nuisance covariate effects from the data}
 \usage{
 mixedcirc_remove_trend(
   data_input = NULL,
+  meta_input = NULL,
   time = NULL,
   group = NULL,
   id = NULL,
   lm_method = c("lm", "lme")[2],
+  formula_extra = NULL,
+  random_effect_type = c("none", "mesor")[2],
   obs_weights = NULL,
   RRBS = FALSE,
   replicate_id = NULL,
@@ -21,59 +24,119 @@ mixedcirc_remove_trend(
 )
 }
 \arguments{
-\item{data_input}{A numerical matrix or data.frame (N*P) or DGEList where in the rows are samples (N) and the columns are variables (P). If DGEList is provided, regression weights will be estimated!}
+\item{data_input}{A numeric matrix, data.frame, or `DGEList` containing the input data.
+Rows correspond to observations and columns correspond to variables when `data_input`
+is a matrix or data.frame. If a `DGEList` is provided, rows correspond to variables and
+columns correspond to samples.}
 
-\item{time}{A vector of length N, showing circadian time of each sample}
+\item{meta_input}{A data.frame or matrix containing the sample-level metadata used to build
+the detrending design. This must include the columns referenced by `time`, `group`, `id`,
+`replicate_id`, and any variables appearing in `formula_extra`.}
 
-\item{group}{A character vector of length N. If performing differential circadian rhythm analysis, group is a factor, showing grouping of the samples. Analysis of two groups is supported at this stage! See details!}
+\item{time}{A character string giving the name of the column in `meta_input` that contains
+time.}
 
-\item{id}{A vector of length N showing identity of each *unique* sample. See details}
+\item{group}{Optional character string giving the name of a grouping column in `meta_input`.
+This is not removed by default. If `remove_trend_separate_groups = TRUE`, detrending is
+performed separately within each group.}
 
-\item{lm_method}{The regression method to use. At this stage, `lm` and `lme` are supported! If lm is selected, normal regression will be performed. Default: "lme"}
+\item{id}{Optional character string giving the name of the subject identifier column in
+`meta_input`. This is used for random effects when `lm_method = "lme"`. If `NULL`, the
+function switches to ordinary linear regression (`lm`).}
 
-\item{obs_weights}{Regression weights. Default: NULL. See details}
+\item{lm_method}{Regression framework to use. Must be one of `"lm"` or `"lme"`.
+`"lm"` fits an ordinary linear model. `"lme"` fits a mixed-effects model using
+`lme4::lmer()`. Default is `"lme"`.}
 
-\item{RRBS}{If `TRUE`, the data is assumed to be RRBS methylation data. if TRUE, obs_weights must be set. Default FALSE}
+\item{formula_extra}{Optional formula containing additional nuisance fixed effects to remove.
+The variables in this formula must be column names in `meta_input`. For RRBS data, these
+extra terms are automatically interacted with `scaler`.}
 
-\item{replicate_id}{If `RRBS` is set to `TRUE`, This has to be a factor showing identity of each unique replicate.}
+\item{random_effect_type}{Type of random-effect structure to use when `lm_method = "lme"`.
+Must be one of `"none"` or `"mesor"`. `"none"` adds no random effect and `"mesor"` adds
+a random intercept `(1 | id)`. Default is `"mesor"`.}
 
-\item{remove_trend_separate_groups}{If TRUE, the detrending is performed separately on each group (default:TRUE)}
+\item{obs_weights}{Optional matrix of observational weights with the same dimensions as
+`data_input` when `data_input` is a matrix or data.frame. Each column corresponds to one
+variable and each row to one observation. For RRBS input, `obs_weights` is required unless
+weights are estimated internally from a `DGEList` or by setting
+`force_weight_estimation = TRUE`.}
 
-\item{force_weight_estimation}{If TRUE, variance-mean trend weight estimation will be performed regardless of the data input type (default: FALSE)}
+\item{RRBS}{Logical. If `TRUE`, the data are assumed to represent RRBS / BS-seq style
+methylation data, with each biological observation represented by two consecutive rows:
+methylated count followed by unmethylated count. In this mode, `replicate_id` must be
+provided. Default is `FALSE`.}
 
-\item{ncores}{number of cores}
+\item{replicate_id}{Character string giving the name of the column in `meta_input` that
+identifies unique technical / replicate observations for RRBS data.}
 
-\item{verbose}{Show information about different stages of the processes. Default FALSE}
+\item{remove_trend_separate_groups}{Logical. If `TRUE` and group information is provided,
+detrending is performed separately within each group. Default is `TRUE`.}
 
-\item{...}{additionl arguments to the regression function}
+\item{force_weight_estimation}{Logical. If `TRUE`, weights are estimated internally using
+`voom()` or `voomWithDreamWeights()` even when `data_input` is not a `DGEList`.
+Default is `FALSE`.}
+
+\item{ncores}{Number of cores to use for parallel processing. Default is `1`.}
+
+\item{verbose}{Logical. If `TRUE`, progress messages are printed. Default is `FALSE`.}
+
+\item{...}{Additional arguments passed to the underlying model-fitting function.}
 }
 \value{
-A data.frame
+A numeric matrix of detrended values. Rows correspond to observations and columns correspond
+to variables. The values are the residuals after removing the fitted trend model.
 }
 \description{
-This functions performs trend removing using mixed models.
+Fits one regression model per variable and returns the residuals after removing
+a non-circadian linear trend. By default, the removed trend is the linear effect
+of `time`. Additional nuisance covariates can be supplied through
+`formula_extra`.
 }
 \details{
-For each variable we use the following mode:
-In this part we do rhythmicity analysis on individual variables using the following model:
-measure ~time
-The residulas will be outputed
+The function uses the same metadata-driven interface as `mixedcirc_detect()`.
+For RRBS / BS-seq style data, the model respects the paired methylated /
+unmethylated structure using `scaler` and `replicate_id`.
 
-`obs_weights` is a matrix of size N*P where each colum shows the weights for all the observations for that particular variable.
 
-If `RRBS` is set to `TRUE`, we assume that the data is RRBS methylation. In this case, the regression will be change to suit this type of analysis.
-In BS-seq methylation analysis, each DNA sample generates two counts, a count of methylated reads and a count of unmethylated reads, for each genomic locus for each sample.
-The samples are assumed to be ordered as methylated and then unmethylated. For example, given the samples are A1_1, A1_2,A2_1, and B1_1.
-The rows in `data_input` are assumed to be ordered as  A1_1_methylated,A1_1_unmethylated, A1_2_methylated,A1_2_unmethylated,A2_1_methylated,A2_1_unmethylated,B1_1_methylated,B1_1_unmethylated.
-In this setting, `replicate_id` must show the unique identify of each replicate (in contrast to unique biological sample). This means for example above,
-`replicate_id` would be A1_1,A1_2,A2_1,B1_1.
-Please note that if `RRBS` is set to `TRUE`, `obs_weights` must be set. We provide a starting function to estimate these weights
-(\code{\link{mixedcirc_rrbs_voom}}) for class of `methylBaseDB` from `methylKit` package. Alternatively, one can use `voomWithDreamWeights` with correct formula.
+For non-RRBS data, the default detrending model is:
+\preformatted{
+measure ~ 1 + time
+}
+
+If `formula_extra` is supplied, its terms are appended to the model. These terms are treated
+as nuisance covariates to remove.
+
+For RRBS data, the default detrending model is:
+\preformatted{
+measure ~ 0 + replicate_id + scaler + time:scaler
+}
+
+If `formula_extra` is supplied for RRBS data, the extra terms are automatically interacted
+with `scaler`, so that the nuisance structure is removed on the methylation scale.
+
+If `remove_trend_separate_groups = TRUE`, the detrending model is fit separately within each
+group. Otherwise, a single common detrending model is fit across all groups. Group itself is
+not removed unless the user explicitly includes it in `formula_extra`.
+
+If weights are not supplied directly, they may be estimated from count-like data using
+`limma::voom()` for ordinary linear models or `voomWithDreamWeights()`
+for mixed-effects models.
 }
 \examples{
 data("circa_data")
 
-results<-mixedcirc_remove_trend(data_input = circa_data$data_matrix,
-time = circa_data$time,group = circa_data$group,id = circa_data$id,verbose = TRUE)
+detrended <- mixedcirc_remove_trend(
+  data_input = circa_data$data_matrix,
+  meta_input = data.frame(
+    time = circa_data$time,
+    group = circa_data$group,
+    id = circa_data$id
+  ),
+  time = "time",
+  group = "group",
+  id = "id",
+  verbose = TRUE
+)
 
 }

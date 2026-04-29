@@ -2,73 +2,139 @@
 % Please edit documentation in R/mixedcirc_compare.R
 \name{mixedcirc_compare}
 \alias{mixedcirc_compare}
-\title{Compares circadian rhythm}
+\title{Compare two circadian signals using lagged association or correlation models}
 \usage{
 mixedcirc_compare(
   x,
   y,
-  cor_type = c("standard", "crosscorrelation")[2],
-  type = c("original", "fitted", "simulate")[1],
-  merge_groups = FALSE,
-  period = 24,
-  lag.max = NULL,
-  level = 0.95,
-  B = 1000,
-  xlab = "x",
-  ylab = "y",
-  min_time = NULL,
-  max_time = NULL
+  lags = -1:1,
+  analysis = c("association", "pearson", "rmcorr")[3],
+  type = c("original", "fitted")[1],
+  separate_groups = TRUE,
+  lag_by = NULL,
+  lag_mode = c("within_sorted", "raw_order")[1],
+  match_by = NULL,
+  lmer.df = c("Satterthwaite", "Kenward-Roger")[1],
+  return_models = FALSE,
+  return_data = FALSE,
+  verbose = FALSE,
+  ...
 )
 }
 \arguments{
-\item{x}{A class of mixedcirc_fit}
+\item{x}{A `mixedcirc_fit` object providing the lagged predictor signal.}
 
-\item{y}{A class of mixedcirc_fit}
+\item{y}{A `mixedcirc_fit` object providing the response signal.}
 
-\item{cor_type}{It can be one of "standard" or "crosscorrelation". Default:crosscorrelation  See details.}
+\item{lags}{Integer vector of lags / leads to evaluate.}
 
-\item{type}{It can be one of "original", "fitted", "simulate". original: original data will used. fitted values will be used. simulate: data will be simulated based on the models and will be used to do cross correlation. Default: original}
+\item{analysis}{One of `"association"`, `"pearson"`, or `"rmcorr"`.
+Default `"rmcorr"`.}
 
-\item{merge_groups}{If TRUE, for multi-group experiments, groups are NOT correlated separately. Default: FALSE}
+\item{type}{One of `"original"` or `"fitted"`.}
 
-\item{period}{The rhythm period. Default: 24}
+\item{separate_groups}{Logical. If `TRUE` and a group column is still present
+after matching, analyses are run separately within each group.}
 
-\item{lag.max}{maximum lag at which to calculate the cross-correlation. Will be automatically limited as in ccf. Default: NULL}
+\item{lag_by}{Optional character vector of metadata columns defining the lagging
+units for `x`.}
 
-\item{level}{confidence level, from 0 to 1. Default is 0.95, that is, 95% confidence.}
+\item{lag_mode}{One of `"within_sorted"` or `"raw_order"`.}
 
-\item{min_time}{Minimum time span to do the prediction. If NULL, it will be taken from the fit. Default: NULL}
+\item{match_by}{Optional character vector of metadata columns used to match
+  rows between `x` and `y`.
 
-\item{max_time}{Maximum time span to do the prediction. If NULL, it will be taken from the fit. Default: NULL}
+  If `NULL`, the function chooses matching columns automatically from the
+  shared metadata in the stored experimental designs.
 
-\item{number}{of bootstrap simulations to obtain empirical critical values. Default is 1000.}
+  If `match_by` is provided, it is used exactly as supplied for matching, and
+  no additional columns such as time, group, id, or replicate_id are added
+  automatically.
+
+  This means that if the user wants grouping or repeated-measures structure
+  to be preserved after matching, those variables must also be included in
+  `match_by` when needed.
+
+  For example:
+  - if `separate_groups = TRUE`, the grouping variable should usually be part
+  of `match_by`
+  - if `analysis = "association"` and a mixed model with `(1|id)` is desired,
+    the subject identifier should usually be part of `match_by`
+  - if `analysis = "rmcorr"`, the subject identifier must be part of
+    `match_by`}
+
+\item{lmer.df}{Denominator degrees-of-freedom method passed to `emmeans` for
+mixed models in `analysis = "association"`.}
+
+\item{return_models}{Logical. If `TRUE`, fitted objects / test objects are returned.}
+
+\item{return_data}{Logical. If `TRUE`, the matched analysis data are returned.}
+
+\item{verbose}{Logical. If `TRUE`, progress messages are printed.}
+
+\item{...}{Additional arguments passed to `lm()` or `lmer()` in
+`analysis = "association"`.}
 }
 \value{
-A list containing:
-A ggplot object.
-A statistical components of standard and cross correlation.
+A list with at least:
+\describe{
+  \item{results}{A data.frame with one row per lag (and per group when relevant).}
+}
+
+If `return_models = TRUE`, the output also contains:
+\describe{
+  \item{models}{A named list of fitted model objects or test objects.}
+}
+
+If `return_data = TRUE`, the output also contains:
+\describe{
+  \item{data}{The matched analysis data used for the analyses.}
+}
 }
 \description{
-This functions compare two circadian rhythm fitted using mixedcirc_detect function using standard or cross-correlation.
+Compares two fitted `mixedcirc_fit` objects after creating lagged / lead
+versions of `x`.
 }
 \details{
-cor_type
-
-One can doe standard and cross correlation between two series.
-In standard mode, we fit a model of y~x and calculate r-squared (marginal r-squared  in case of repeated measures).
-The correlation is then simply assumed to be sign of coeffect of X * sqrt(r-squared)
-
-This is a typical cross-correlation. In case of repeated measures specially the p-values cannot be trusted.
-
-
-In case of RRBS, the data is assumed to be log2. The M-values are calculated as Mathylated-Unmethylated.
-In any case, the data in x and y will be matched using all the columns in the exp_design (except the measurement)
+Three analysis modes are supported:
+\describe{
+  \item{`"association"`}{Directional lagged regression. The fitted model is
+  `measure.y ~ shifted measure.x`, or `measure.y ~ shifted measure.x + (1|id)`
+  when an `id` column is available after matching.}
+  \item{`"pearson"`}{Pearson correlation between `measure.y` and the shifted
+  `measure.x`.}
+  \item{`"rmcorr"`}{Repeated-measures correlation using `rmcorr::rmcorr()`.
+  This requires an `id` column to still be present after matching.}
 }
-\examples{
-data("circa_data")
 
-results<-mixedcirc_detect(data_input = circa_data$data_matrix,
-time = circa_data$time,group = circa_data$group,id = circa_data$id,period = 24,verbose = TRUE)
-mixedcirc_compare(results[1],results[2])
+The function uses the stored `exp_design` from each fitted object, including
+the feature-specific `measure`, `.used_in_fit`, and `.fitted` columns created
+by the updated `mixedcirc_detect()`.
 
+
+`analysis = "association"` is directional, not symmetric. It answers:
+\preformatted{
+does shifted x predict y?
+}
+Therefore, in general, fitting
+\preformatted{
+y ~ shifted x
+}
+is not equivalent to fitting
+\preformatted{
+x ~ shifted y
+}
+
+If the reverse direction is of interest, swap `x` and `y` and run the
+function again.
+
+Please note that the association analysis might fail for identical time series.
+
+`analysis = "pearson"` and `analysis = "rmcorr"` are correlation-style
+summaries rather than directional regression models.
+
+For RRBS fits, the signal is collapsed before analysis to:
+\preformatted{
+scaler = 1 - scaler = 0
+}
 }

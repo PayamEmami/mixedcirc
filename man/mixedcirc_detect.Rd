@@ -2,21 +2,23 @@
 % Please edit documentation in R/mixedcirc_detect.R
 \name{mixedcirc_detect}
 \alias{mixedcirc_detect}
-\title{Perform differential circadian rhythm analysis using mixed models}
+\title{Perform circadian and differential circadian analysis using linear or mixed-effects models}
 \usage{
 mixedcirc_detect(
   data_input = NULL,
+  meta_input = NULL,
   time = NULL,
   group = NULL,
   id = NULL,
   period = 24,
   lm_method = c("lm", "lme")[2],
-  f_test = c("multcomp_f", "multcomp_chi", "Satterthwaite", "Kenward-Roger")[3],
+  formula_extra = NULL,
+  random_effect_type = c("none", "mesor", "mesor_phase")[2],
+  lmer.df = c("Satterthwaite", "Kenward-Roger")[1],
   abs_phase = TRUE,
   obs_weights = NULL,
   RRBS = FALSE,
   replicate_id = NULL,
-  separate_tests = TRUE,
   force_weight_estimation = FALSE,
   ncores = 1,
   verbose = FALSE,
@@ -24,67 +26,169 @@ mixedcirc_detect(
 )
 }
 \arguments{
-\item{data_input}{A numerical matrix or data.frame (N*P) or DGEList where in the rows are samples (N) and the columns are variables (P). If DGEList is provided, regression weights will be estimated!}
+\item{data_input}{A numeric matrix, data.frame, or `DGEList` containing the input data.
+Rows correspond to observations and columns correspond to variables when `data_input`
+is a matrix or data.frame. If a `DGEList` is provided, rows correspond to variables and
+columns correspond to samples, following the standard `limma` / `edgeR` convention.
+When a `DGEList` is supplied, expression values and observational weights are estimated
+internally using `voom()` or `voomWithDreamWeights()`.}
 
-\item{time}{A vector of length N, showing circadian time of each sample}
+\item{meta_input}{A data.frame or matrix containing the sample-level metadata used to build
+the design matrix. This must include the columns referenced by `time`, `group`, `id`,
+`replicate_id`, and any terms in `formula_extra`.}
 
-\item{group}{A character vector of length N. If performing differential circadian rhythm analysis, group is a factor, showing grouping of the samples. Analysis of two groups is supported at this stage! See details!}
+\item{time}{A character string giving the name of the column in `meta_input` that contains
+circadian time.}
 
-\item{id}{A vector of length N showing identity of each *unique* sample. See details}
+\item{group}{Optional character string giving the name of the grouping column in `meta_input`.
+If provided, group-specific mesor, amplitude, phase, and rhythmicity p-values are returned,
+together with between-group rhythm-difference tests and a global rhythmicity test across groups.
+If `NULL`, all samples are treated as belonging to a single group.}
 
-\item{period}{Period of circadian rhythm. Default: 24}
+\item{id}{Optional character string giving the name of the subject identifier column in
+`meta_input`. This is used for random effects when `lm_method = "lme"`.
+If `NULL`, the function switches to ordinary linear regression (`lm`).}
 
-\item{lm_method}{The regression method to use. At this stage, `lm` and `lme` are supported! If lm is selected, normal regression will be performed. Default: "lme"}
+\item{period}{A single numeric value specifying the assumed period of the rhythm.
+Default is `24`.}
 
-\item{f_test}{Type of f-test for calculating p-value of the rhythm. Possible values are "multcomp_f","multcomp_chi","Satterthwaite", "Kenward-Roger". Default: Satterthwaite}
+\item{lm_method}{Regression framework to use. Must be one of `"lm"` or `"lme"`.
+`"lm"` fits an ordinary linear model. `"lme"` fits a mixed-effects model using
+`lme4::lmer()`. Default is `"lme"`.}
 
-\item{abs_phase}{Whether to return absolute phase or not. Default: TRUE}
+\item{formula_extra}{Optional formula containing additional fixed-effect covariates to include
+in the model. The variables in this formula must be column names in `meta_input`.
+For RRBS data, these extra terms are automatically interacted with `scaler`.}
 
-\item{obs_weights}{Regression weights. Default: NULL. See details}
+\item{random_effect_type}{Type of random-effect structure to use when `lm_method = "lme"`.
+Must be one of `"none"`, `"mesor"`, or `"mesor_phase"`.
+`"none"` adds no random effect,
+`"mesor"` adds a random intercept `(1 | id)`,
+and `"mesor_phase"` adds random intercept and rhythm terms.
+For RRBS this becomes `(1 + scaler:inphase + scaler:outphase | id)`;
+otherwise it becomes `(1 + inphase + outphase | id)`.}
 
-\item{RRBS}{If `TRUE`, the data is assumed to be RRBS methylation data. if TRUE, obs_weights must be set. Default FALSE}
+\item{lmer.df}{Method used by `emmeans` / `emtrends` for denominator degrees of freedom when
+`lm_method = "lme"`. Must be one of `"Satterthwaite"` or `"Kenward-Roger"`.
+Default is `"Satterthwaite"`.}
 
-\item{replicate_id}{If `RRBS` is set to `TRUE`, This has to be a factor showing identity of each unique replicate.}
+\item{abs_phase}{Logical. If `TRUE`, absolute values of estimated phases are returned.
+Default is `TRUE`.}
 
-\item{separate_tests}{If TRUE (defualt), separate models will be fit for each group to estimate rhythmicity otherwise, groupwise rhythmicity will be based on the a global model.}
+\item{obs_weights}{Optional matrix of observational weights with the same dimensions as
+`data_input` when `data_input` is a matrix or data.frame. Each column corresponds to one
+variable and each row to one observation. For RRBS input, `obs_weights` is required unless
+weights are estimated internally from a `DGEList`.}
 
-\item{force_weight_estimation}{If TRUE, variance-mean trend weight estimation will be performed regardless of the data input type}
+\item{RRBS}{Logical. If `TRUE`, the data are assumed to represent RRBS / BS-seq style
+methylation data, with each biological observation represented by two consecutive rows:
+methylated count followed by unmethylated count. In this mode, `obs_weights` must be supplied
+unless weights are estimated internally, and `replicate_id` must be provided.
+Default is `FALSE`.}
 
-\item{ncores}{number of cores}
+\item{replicate_id}{Character string giving the name of the column in `meta_input` that
+identifies unique technical / replicate observations for RRBS data. This is required when
+`RRBS = TRUE`.}
 
-\item{verbose}{Show information about different stages of the processes. Default FALSE}
+\item{force_weight_estimation}{Logical. If `TRUE`, weights are estimated internally using
+`voom()` or `voomWithDreamWeights()` even when `data_input` is not a `DGEList`.
+Default is `FALSE`.}
 
-\item{...}{additionl arguments to the regression function}
+\item{ncores}{Number of cores to use for parallel processing. Default is `1`.}
+
+\item{verbose}{Logical. If `TRUE`, progress messages are printed. Default is `FALSE`.}
+
+\item{...}{Additional arguments passed to the underlying model-fitting function.}
 }
 \value{
-A class of mixedcirc_fit_list.
+An object of class `mixedcirc_fit_list`. Each element corresponds to one analyzed variable
+and contains:
+\describe{
+  \item{results}{A one-row data.frame with estimated mesor, amplitude, phase, and p-values.}
+  \item{fit}{The fitted model object (`lm` or `lmerMod`).}
+  \item{exp_design}{The experimental design used for fitting, including generated `inphase`
+  and `outphase` columns.}
+  \item{type}{A character string indicating the analysis type, e.g. `"expression"` or `"RRBS"`.}
+}
 }
 \description{
-This functions performs differential circadian rhythm analysis using mixed models.
+Fits one model per variable to estimate mesor, amplitude, phase, within-group rhythmicity,
+and, when group information is provided, between-group differences in rhythmicity.
+The function supports ordinary linear regression (`lm`) and linear mixed-effects regression
+(`lmer` via `lme4`). It can also analyze RRBS-style methylation data using a paired
+methylated / unmethylated representation.
 }
 \details{
-For each variable we use the following mode:
-In this part we do rhythmicity analysis on individual variables using the following model:
-measure ~0 + group + group:in + group:out
-Where `in` is defined as cos(2 * pi * time / period) and `out` as sin(2 * pi * time / period).
-The global inference is tested on group:in == 0 or group:out == 0
-The between group difference is tested as differences between in and out across different groups. No p-value adjustment is performed!
+Circadian time is encoded using
+\deqn{inphase = cos(2\pi t / period)}
+and
+\deqn{outphase = sin(2\pi t / period).}
 
-`obs_weights` is a matrix of size N*P where each colum shows the weights for all the observations for that particular variable.
+For non-RRBS data with group information, the default fixed-effects model is
+\preformatted{
+measure ~ 1 + group + group:inphase + group:outphase
+}
 
-If `RRBS` is set to `TRUE`, we assume that the data is RRBS methylation. In this case, the regression will be change to suit this type of analysis.
-In BS-seq methylation analysis, each DNA sample generates two counts, a count of methylated reads and a count of unmethylated reads, for each genomic locus for each sample.
-The samples are assumed to be ordered as methylated and then unmethylated. For example, given the samples are A1_1, A1_2,A2_1, and B1_1.
-The rows in `data_input` are assumed to be ordered as  A1_1_methylated,A1_1_unmethylated, A1_2_methylated,A1_2_unmethylated,A2_1_methylated,A2_1_unmethylated,B1_1_methylated,B1_1_unmethylated.
-In this setting, `replicate_id` must show the unique identify of each replicate (in contrast to unique biological sample). This means for example above,
-`replicate_id` would be A1_1,A1_2,A2_1,B1_1.
-Please note that if `RRBS` is set to `TRUE`, `obs_weights` must be set. We provide a starting function to estimate these weights
-(\code{\link{mixedcirc_rrbs_voom}}) for class of `methylBaseDB` from `methylKit` package. Alternatively, one can use `voomWithDreamWeights` with correct formula.
+For non-RRBS data without group information, the fixed-effects model is
+\preformatted{
+measure ~ 1 + inphase + outphase
+}
+
+For RRBS data with group information, the default fixed-effects model is
+\preformatted{
+measure ~ 0 + replicate_id + scaler + group:scaler + group:inphase:scaler + group:outphase:scaler
+}
+
+For RRBS data without group information, the fixed-effects model is
+\preformatted{
+measure ~ 0 + replicate_id + scaler + inphase:scaler + outphase:scaler
+}
+
+Additional fixed effects supplied through `formula_extra` are appended to the model.
+
+Rhythmicity within each group is tested jointly from the estimated `inphase` and `outphase`
+coefficients using `emmeans` / `emtrends`. In grouped analyses, the function also computes
+pairwise between-group tests for differences in rhythm coefficients, as well as a global
+joint rhythmicity test across all groups.
+
+Amplitude is computed as
+\deqn{\sqrt{\beta_{in}^2 + \beta_{out}^2}}
+and phase is derived from the estimated sine and cosine coefficients using `calc_phase()`.
+
+For RRBS input, the rows of `data_input` are assumed to alternate between methylated and
+unmethylated counts for each biological observation. For example, if the biological samples are
+`A1_1`, `A1_2`, `A2_1`, and `B1_1`, then the rows of `data_input` must be ordered as
+\preformatted{
+A1_1_methylated, A1_1_unmethylated,
+A1_2_methylated, A1_2_unmethylated,
+A2_1_methylated, A2_1_unmethylated,
+B1_1_methylated, B1_1_unmethylated
+}
+In this case, `meta_input` should contain one row per biological observation
+(`A1_1`, `A1_2`, `A2_1`, `B1_1`), and the function internally expands it to match the
+methylated / unmethylated row structure.
+
+If weights are not supplied directly, they may be estimated from count-like data using
+`limma::voom()` for ordinary linear models or `voomWithDreamWeights()`
+for mixed-effects models.
+
+No multiple-testing adjustment is performed inside this function.
 }
 \examples{
 data("circa_data")
 
-results<-mixedcirc_detect(data_input = circa_data$data_matrix,
-time = circa_data$time,group = circa_data$group,id = circa_data$id,period = 24,verbose = TRUE)
+res <- mixedcirc_detect(
+  data_input = circa_data$data_matrix,
+  meta_input = data.frame(
+    time = circa_data$time,
+    group = circa_data$group,
+    id = circa_data$id
+  ),
+  time = "time",
+  group = "group",
+  id = "id",
+  period = 24,
+  verbose = TRUE
+)
 
 }

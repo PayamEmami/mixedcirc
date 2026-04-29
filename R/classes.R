@@ -3,6 +3,7 @@
 #' @slot results A data frame that contains bootstrap statistics (e.g., estimates, confidence intervals, p-values).
 #' @slot metadata A list containing metadata about the bootstrap procedure (e.g., number of simulations, confidence level).
 #' @slot original_model The original model object on which the bootstrap was performed.
+#' @import methods
 mixedcirc_boot <- setClass("mixedcirc_boot",
                            slots = list(
                              results = "data.frame",
@@ -41,16 +42,23 @@ setMethod("as.data.frame", "mixedcirc_boot", function(x, ...) {
 
 #' Represents the result of model fitting on a single variable.
 #'
-#' @slot results A one row data frame that contains statistics of fitted model
-#' @slot fit is the actual fitted model
-#' @slot exp_design is the experimental design file created by mixedcirc_detect
-#' @slot type represents the type of analysis done. E.g. RRBS etc
-mixedcirc_fit <- setClass("mixedcirc_fit",
-                          slots = list(results = "data.frame",
-                                       fit = "ANY",
-                                       exp_design = "data.frame",type="character")
+#' @slot results A one-row data frame containing statistics from the fitted model.
+#' @slot fit The actual fitted model object.
+#' @slot exp_design The experimental design data frame created by mixedcirc_detect.
+#' @slot type The type of analysis performed, for example "RRBS".
+#' @slot call The function call used to create the object.
+#' @slot params A list of parameters used by other functions.
+mixedcirc_fit <- setClass(
+  "mixedcirc_fit",
+  slots = list(
+    results = "data.frame",
+    fit = "ANY",
+    exp_design = "data.frame",
+    type = "character",
+    call = "call",
+    params = "list"
+  )
 )
-
 #' Represents the result of model fitting on several variables.
 #'
 #' @slot results A list of mixedcirc_fit
@@ -107,10 +115,11 @@ setMethod(f = "show",
           definition = function(object) { print(object@results) }
 )
 
+#' @export
 print.mixedcirc_fit_list <- function(x, ...) {
 	cat('Total number of variables: ', length(x@results))
 }
-
+#' @export
 print.mixedcirc_fit <- function(x, ...) {
 	print(x@results, ...)
 }
@@ -118,7 +127,7 @@ print.mixedcirc_fit <- function(x, ...) {
 setMethod(show, "mixedcirc_integration", function(object) {
   cat('Total number of Omics: ', length(object@partial), '! Use partial or average scores in mixedcirc_detect!')
 })
-
+#' @export
 print.mixedcirc_integration <- function(x, ...) {
 	cat('Total number of Omics: ', length(object@partial),'! Use partial or average scores in mixedcirc_detect!')
 }
@@ -129,6 +138,11 @@ setMethod(f = "show",
 )
 
 setMethod(f = `[`,
+          signature = "mixedcirc_fit_list",
+          definition = function(x, i = NULL, j = NULL) { x@results[[i]] }
+)
+
+setMethod(f = `[[`,
           signature = "mixedcirc_fit_list",
           definition = function(x, i = NULL, j = NULL) { x@results[[i]] }
 )

@@ -26,6 +26,7 @@
 #' The p-values from the matching columns will be adjusted one column at the time using the selected method.
 #'
 #' @import stats
+#' @import methods
 #' @import multcomp
 #' @import doFuture
 #' @import future
@@ -35,10 +36,9 @@
 #' @import limma
 #' @import lmerTest
 #' @import foreach
-#' @import variancePartition
 #' @import multtest
 
-mixedcirc_adjust <- function(input, method="BH", pattern="p_value", verbose=FALSE, ...) {
+mixedcirc_adjust <- function(input, method="BH", pattern="p.value", verbose=FALSE, ...) {
 
   if (verbose) {
     cat("Checking inputs ...\n")

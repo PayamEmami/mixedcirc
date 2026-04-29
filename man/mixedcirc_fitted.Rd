@@ -2,27 +2,47 @@
 % Please edit documentation in R/mixedcirc_fitted.R
 \name{mixedcirc_fitted}
 \alias{mixedcirc_fitted}
-\title{Extract the fitted circadian rhythm}
+\title{Extract fitted circadian values}
 \usage{
-mixedcirc_fitted(fit = NULL, per_group = FALSE, verbose = FALSE, ...)
+mixedcirc_fitted(fit = NULL, verbose = FALSE)
 }
 \arguments{
-\item{fit}{an object of class mixedcirc_fit or mixedcirc_fit_list}
+\item{fit}{An object of class `mixedcirc_fit` or `mixedcirc_fit_list`.}
 
-\item{verbose}{Show information about different stages of the processes. Default FALSE}
+\item{verbose}{Logical. If `TRUE`, progress messages are printed. Default `FALSE`.}
 }
 \value{
-A matrix of detrended data
+A numeric matrix of fitted values. Rows correspond to the rows of
+`exp_design` stored in the fitted object, and columns correspond to features.
 }
 \description{
-This function extract the fitted values of circadian rhythm.
+This function extracts fitted values from one or more fitted `mixedcirc`
+models and returns them as a matrix aligned with the stored experimental
+design.
+}
+\details{
+This function returns the fitted values stored in the `.fitted` column of
+`exp_design`, which is created by the updated `mixedcirc_detect()`.
+If some rows were dropped during model fitting, their fitted values remain `NA`.
 }
 \examples{
 library(mixedcirc)
 data("circa_data")
-results<-mixedcirc_detect(data_input = circa_data$data_matrix,
-                         time = circa_data$time,group = circa_data$group,id = circa_data$id,period = 24,verbose = TRUE)
-detrended<-mixedcirc_fitted(results)
 
+results <- mixedcirc_detect(
+  data_input = circa_data$data_matrix,
+  meta_input = data.frame(
+    time = circa_data$time,
+    group = circa_data$group,
+    id = circa_data$id
+  ),
+  time = "time",
+  group = "group",
+  id = "id",
+  period = 24,
+  verbose = TRUE
+)
+
+fitted_vals <- mixedcirc_fitted(results)
 
 }

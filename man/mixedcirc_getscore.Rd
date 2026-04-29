@@ -2,7 +2,7 @@
 % Please edit documentation in R/mixedcirc_integrate.R
 \name{mixedcirc_getscore}
 \alias{mixedcirc_getscore}
-\title{Retrieved scores from mixedcirc_integration}
+\title{Extract scores, loadings, or model from a mixedcirc integration object}
 \usage{
 mixedcirc_getscore(
   input = NULL,
@@ -13,29 +13,47 @@ mixedcirc_getscore(
 )
 }
 \arguments{
-\item{input}{A mixedcirc_integration object}
+\item{input}{A `mixedcirc_integration` object.}
 
-\item{type}{what scores to retrieve (partial, average, loadings, model)}
+\item{type}{One of `"partial"`, `"average"`, `"loadings"`, or `"model"`.}
 
-\item{dataset}{name of the data set to extract the data from}
+\item{dataset}{Optional dataset name to extract when `merge = FALSE` and
+`type` is `"partial"` or `"loadings"`.}
 
-\item{merge}{If TRUE, the scores or loadings will be merged into a single data frame (default: FALSE). This has no effect if \code{type} is average!}
+\item{merge}{Logical. If `TRUE`, all datasets are combined column-wise into one
+matrix when `type` is `"partial"` or `"loadings"`. Default `FALSE`.}
 
-\item{verbose}{Enables printing logs}
+\item{verbose}{Logical. If `TRUE`, progress messages are printed. Default `FALSE`.}
 }
 \value{
-A data frame of values
+A matrix for `"partial"`, `"average"`, or `"loadings"`, or the full fitted
+model object for `"model"`.
 }
 \description{
-This functions performs circadian rhythm data integration using canonical correlations.
-}
-\details{
-This method is used to extract scores and loadings from a mixedcirc_integration object
+Retrieves partial scores, average scores, loadings, or the full fitted SGCCA
+model from an object of class `mixedcirc_integration`.
 }
 \examples{
 library(mixedcirc)
 data("circa_data")
-data_input <- list(a=circa_data$data_matrix[,1:3],b=circa_data$data_matrix[,3:7])
-results <- mixedcirc_integrate(data_input,time = circa_data$time,group = circa_data$group,id = circa_data$id)
-score_matrix <- mixedcirc_getscore(results,type="average")
+
+data_input <- list(
+  a = circa_data$data_matrix[, 1:3],
+  b = circa_data$data_matrix[, 4:7]
+)
+
+results <- mixedcirc_integrate(
+  data_input = data_input,
+  meta_input = data.frame(
+    time = circa_data$time,
+    group = circa_data$group,
+    id = circa_data$id
+  ),
+  time = "time",
+  group = "group",
+  id = "id"
+)
+
+score_matrix <- mixedcirc_getscore(results, type = "average")
+
 }

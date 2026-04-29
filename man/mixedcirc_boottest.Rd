@@ -13,42 +13,50 @@ mixedcirc_boottest(
   boot.type = c("perc", "basic", "norm")[1],
   conf_level = 0.95,
   abs_phase = TRUE,
+  wrap_phase = TRUE,
   ...
 )
 }
 \arguments{
-\item{object}{A fitted model object of class \code{mixedcirc_fit}.}
+\item{object}{A fitted model object of class `mixedcirc_fit`.}
 
 \item{nsim}{Number of bootstrap simulations.}
 
-\item{seed}{seed for reproducibitly}
+\item{seed}{Seed for reproducibility.}
 
-\item{parallel}{The type of parallel processing to use (\code{"no"}, \code{"multicore"}, \code{"snow"}).}
+\item{parallel}{The type of parallel processing to use.}
 
-\item{ncpus}{Number of CPU cores to use for parallel processing.}
+\item{ncpus}{Number of CPU cores to use.}
 
-\item{boot.type}{Type of bootstrap confidence interval (\code{"perc"}, \code{"basic"}, \code{"norm"}).}
+\item{boot.type}{Type of bootstrap confidence interval.}
 
 \item{conf_level}{Confidence level for the bootstrap intervals.}
 
-\item{abs_phase}{Logical; if \code{TRUE}, absolute phases are returned.}
+\item{abs_phase}{Logical; if `TRUE`, absolute phases are returned.}
 
-\item{...}{Additional arguments passed to \code{bootMer}.}
+\item{wrap_phase}{Logical; if `TRUE` (default), pairwise phase differences
+are wrapped to the interval [-pi, pi] before being returned. This gives
+the shortest signed circular phase difference between groups. Ignored for
+ungrouped analyses.}
+
+\item{...}{Additional arguments passed to `boot_lm()`.}
 }
 \value{
-A \code{mixedcirc_boot} object containing:
-  \itemize{
-    \item \code{results}: A data frame with bootstrap statistics.
-    \item \code{metadata}: Metadata about the bootstrap procedure.
-    \item \code{original_model}: The original fitted model object.
-  }
+A `mixedcirc_boot` object.
 }
 \description{
-This function performs bootstrap testing on fitted (mixed) circadian models.
+This function performs bootstrap testing on fitted circadian models
+from `mixedcirc_detect()`, supporting:
+- lm and lmer fits
+- RRBS and non-RRBS analyses
+- grouped and ungrouped models
 }
-\examples{
-\dontrun{
-  # Example usage
-  result <- mixedcirc_boottest(fitted_model, nsim = 1000)
-}
+\details{
+The function uses `boot_lm()` to bootstrap mesor, amplitude, and phase
+summaries derived from the fitted model. When grouped analyses are used,
+pairwise group differences are also returned.
+
+By default, phase differences between groups are wrapped onto the circular
+interval [-pi, pi], which represents the shortest signed phase difference.
+This is usually the most meaningful representation in circadian analyses.
 }

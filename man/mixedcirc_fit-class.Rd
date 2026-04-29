@@ -11,12 +11,16 @@ Represents the result of model fitting on a single variable.
 \section{Slots}{
 
 \describe{
-\item{\code{results}}{A one row data frame that contains statistics of fitted model}
+\item{\code{results}}{A one-row data frame containing statistics from the fitted model.}
 
-\item{\code{fit}}{is the actual fitted model}
+\item{\code{fit}}{The actual fitted model object.}
 
-\item{\code{exp_design}}{is the experimental design file created by mixedcirc_detect}
+\item{\code{exp_design}}{The experimental design data frame created by mixedcirc_detect.}
 
-\item{\code{type}}{represents the type of analysis done. E.g. RRBS etc}
+\item{\code{type}}{The type of analysis performed, for example "RRBS".}
+
+\item{\code{call}}{The function call used to create the object.}
+
+\item{\code{params}}{A list of parameters used by other functions.}
 }}
 

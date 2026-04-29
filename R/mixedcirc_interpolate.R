@@ -1,101 +1,170 @@
-#' Generate circadian rhythm
+#' Generate interpolated circadian rhythm predictions
 #'
-#' This functions gets a mixedcirc_fit circadian rhythm fitted using mixedcirc_detect function and interpolate data points between two times.
+#' This function takes one or more fitted `mixedcirc` objects and generates
+#' interpolated circadian predictions across a sequence of time points.
 #'
-#' @param x A class of mixedcirc_fit
-#' @param period The rhythm period. Default: 24
-#' @param min_time Minimum time span to do the prediction. If NULL, it will be taken from the fit. Default: NULL
-#' @param max_time Maximum time span to do the prediction. If NULL, it will be taken from the fit. Default: NULL
-#' @param npoints Maximun number of data points to generate Default: 200
+#'
+#' @param x An object of class `mixedcirc_fit` or `mixedcirc_fit_list`.
+#' @param period Rhythm period. Default `24`.
+#' @param min_time Minimum time used for interpolation. If `NULL`, taken from the
+#'   fitted object's stored experimental design.
+#' @param max_time Maximum time used for interpolation. If `NULL`, taken from the
+#'   fitted object's stored experimental design.
+#' @param npoints Number of interpolated time points to generate. Default `200`.
+#' @param fixed_values Named list of covariate values to force in prediction.
+#'   For example `list(age = 50, batch = "B1")`.
+#' @param expand_vars Character vector of extra covariates to keep separate in
+#'   the interpolated output.
+#' @param numeric_method How numeric nuisance covariates are fixed:
+#'   `"mean"` or `"median"`. Default `"mean"`.
+#' @param factor_method How nuisance factor covariates are handled:
+#'   `"average_observed"`, `"average_equal"`, or `"reference"`.
+#'   Default `"average_observed"`.
+#' @param add_expanded_label Logical. If `TRUE`, adds the `.expanded_label`
+#'   column to the returned data. Default `TRUE`.
+#'
+#' @return
+#' If `x` is a `mixedcirc_fit`, a `data.frame` containing the interpolated
+#' prediction grid together with a `Y.hat` column of fitted values.
+#'
+#' If `x` is a `mixedcirc_fit_list`, a single combined `data.frame` is returned,
+#' with one additional column named `feature` identifying the source feature.
+#'
+#' @details
+#' This function uses the same interpolation and prediction rules as
+#' `mixedcirc_fit_plot()`.
+#'
 #' @examples
 #' data("circa_data")
 #'
-#'results<-mixedcirc_detect(data_input = circa_data$data_matrix,
-#'time = circa_data$time,group = circa_data$group,id = circa_data$id,period = 24,verbose = TRUE)
-#'int_data<-mixedcirc_interpolate(results)
-#' @return
-#' A data.frame with all the elements of the model including "Y.hat" that is the interpolated data
+#' results <- mixedcirc_detect(
+#'   data_input = circa_data$data_matrix,
+#'   meta_input = data.frame(
+#'     time = circa_data$time,
+#'     group = circa_data$group,
+#'     id = circa_data$id
+#'   ),
+#'   time = "time",
+#'   group = "group",
+#'   id = "id",
+#'   period = 24,
+#'   verbose = TRUE
+#' )
 #'
-#' @details
-#' In case of RRBS, the data is assumed to be log2. The M-values are calculated as Mathylated-Unmethylated
+#' int_data_one <- mixedcirc_interpolate(results[1])
+#' int_data_all <- mixedcirc_interpolate(results)
 #'
-#' @import stats
-#' @import multcomp
-#' @import doFuture
-#' @import future
-#' @import nlme
-#' @import future.apply
-#' @import lme4
-#' @import limma
-#' @import lmerTest
-#' @import foreach
-#' @import ggplot2
-#' @import ggsci
-#' @import ggpubr
-#' @importFrom graphics plot
+#' @import methods
 #' @export
-mixedcirc_interpolate<- function(x, period=24,
-                              min_time=NULL,
-                              max_time=NULL,
-                              npoints=200) {
+mixedcirc_interpolate <- function(x,
+                                  period = 24,
+                                  min_time = NULL,
+                                  max_time = NULL,
+                                  npoints = 200,
+                                  fixed_values = list(),
+                                  expand_vars = NULL,
+                                  numeric_method = c("mean", "median")[1],
+                                  factor_method = c("average_observed", "average_equal", "reference")[1],
+                                  add_expanded_label = TRUE) {
 
-  if(npoints<=0)
-  {
-    stop("npoints must be higher than 0!")
+  if (!(is(x, "mixedcirc_fit") || is(x, "mixedcirc_fit_list"))) {
+    stop("x must be an object of class `mixedcirc_fit` or `mixedcirc_fit_list`.")
   }
 
-  object <- x
-  type_of_analysis<-object@type
-  fit <- object@fit
-  pr_rows <- c()
-  if(class(fit) == "lm") {
-    pr_rows <- rownames(fit[[1]]@fit$model)
-  } else {
-    pr_rows <- rownames(fit@frame)
+  if (!is.numeric(npoints) || length(npoints) != 1 || is.na(npoints) || npoints <= 0) {
+    stop("npoints must be a single positive numeric value.")
   }
 
-  exp_design <- object@exp_design[rownames(object@exp_design)%in%pr_rows,]
-  all_combs <- expand.grid(group=unique(object@exp_design[,"group"]))
-  to_be_predited <- c()
-  if(is.null(min_time)) { min_time <- min(exp_design$time) }
-  if(is.null(max_time)) { max_time <- max(exp_design$time) }
-  replicate_id<-NULL
-  if(type_of_analysis=="RRBS")
-  {
-    set.seed(1)
-    replicate_id<-sample(fit@frame$replicate_id,size = 1)
+  numeric_method <- match.arg(numeric_method, c("mean", "median"))
+  factor_method  <- match.arg(factor_method, c("average_observed", "average_equal", "reference"))
+
+  .get_feature_name <- function(object, fallback = "feature") {
+    nm <- tryCatch(rownames(object@results), error = function(e) NULL)
+    if (is.null(nm) || length(nm) == 0 || is.na(nm[1]) || nm[1] == "") {
+      return(fallback)
+    }
+    nm[1]
   }
-  for(i in 1:nrow(all_combs)) {
-    gr<-as.character(all_combs[i,"group"])
 
-    timeax <- seq(min_time, max(c(period,max_time)), length.out = npoints)
-    newdata <- data.frame(time = timeax,
-                          inphase = cos(2 * pi * timeax/period),
-                          outphase = sin(2 * pi * timeax/period),
-                          group=gr)
+  .interpolate_one <- function(object,
+                               period,
+                               min_time,
+                               max_time,
+                               npoints,
+                               fixed_values,
+                               expand_vars,
+                               numeric_method,
+                               factor_method,
+                               add_expanded_label) {
 
-    if(type_of_analysis=="RRBS")
-    {
-      newdata_1<-cbind(newdata,scaler=1,replicate_id=as.character(replicate_id))
-      newdata_2<-cbind(newdata,scaler=0,replicate_id=as.character(replicate_id))
-      to_be_predited <- rbind(to_be_predited,rbind(newdata_1,newdata_2))
-    }else{
-      to_be_predited <- rbind(to_be_predited,newdata)
+    pred_df <- .build_prediction_data(
+      object = object,
+      period = period,
+      min_time = min_time,
+      max_time = max_time,
+      n_points = npoints,
+      fixed_values = fixed_values,
+      expand_vars = expand_vars,
+      numeric_method = numeric_method,
+      factor_method = factor_method
+    )
+
+    pred_df <- .predict_circadian_curve(
+      object = object,
+      pred_df = pred_df
+    )
+
+    if (isTRUE(add_expanded_label)) {
+      pred_df <- .add_expanded_label(pred_df, expand_vars = expand_vars)
     }
 
+    pred_df <- as.data.frame(pred_df)
+    rownames(pred_df) <- NULL
+    pred_df
   }
 
-  to_be_predited$Y.hat <- predict(object = fit,
-                                  newdata = to_be_predited,
-                                  re.form=NA,
-                                  level = 0)
-
-  if(type_of_analysis=="RRBS")
-  {
-    to_be_predited_2<-to_be_predited
-    to_be_predited<-to_be_predited[to_be_predited$scaler==1,]
-    to_be_predited$Y.hat<-to_be_predited_2$Y.hat[to_be_predited_2$scaler==1]-to_be_predited_2$Y.hat[to_be_predited_2$scaler==0]
+  if (is(x, "mixedcirc_fit")) {
+    return(
+      .interpolate_one(
+        object = x,
+        period = period,
+        min_time = min_time,
+        max_time = max_time,
+        npoints = npoints,
+        fixed_values = fixed_values,
+        expand_vars = expand_vars,
+        numeric_method = numeric_method,
+        factor_method = factor_method,
+        add_expanded_label = add_expanded_label
+      )
+    )
   }
 
-  return(to_be_predited)
+  # mixedcirc_fit_list -> return one combined data.frame
+  out_list <- vector("list", length(x))
+
+  for (i in seq_along(x)) {
+    object <- x[i]
+    feature_name <- .get_feature_name(object, fallback = paste0("feature_", i))
+
+    df_i <- .interpolate_one(
+      object = object,
+      period = period,
+      min_time = min_time,
+      max_time = max_time,
+      npoints = npoints,
+      fixed_values = fixed_values,
+      expand_vars = expand_vars,
+      numeric_method = numeric_method,
+      factor_method = factor_method,
+      add_expanded_label = add_expanded_label
+    )
+
+    df_i$feature <- feature_name
+    out_list[[i]] <- df_i
+  }
+
+  out <- do.call(rbind, out_list)
+  rownames(out) <- NULL
+  out
 }

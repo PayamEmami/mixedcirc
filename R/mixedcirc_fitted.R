@@ -1,88 +1,88 @@
-#' Extract the fitted circadian rhythm
+#' Extract fitted circadian values
 #'
-#' This function extract the fitted values of circadian rhythm.
+#' This function extracts fitted values from one or more fitted `mixedcirc`
+#' models and returns them as a matrix aligned with the stored experimental
+#' design.
 #'
-#' @param fit an object of class mixedcirc_fit or mixedcirc_fit_list
-#' @param verbose Show information about different stages of the processes. Default FALSE
-#' @export
+#' @param fit An object of class `mixedcirc_fit` or `mixedcirc_fit_list`.
+#' @param verbose Logical. If `TRUE`, progress messages are printed. Default `FALSE`.
+#'
+#' @return
+#' A numeric matrix of fitted values. Rows correspond to the rows of
+#' `exp_design` stored in the fitted object, and columns correspond to features.
+#'
+#' @details
+#' This function returns the fitted values stored in the `.fitted` column of
+#' `exp_design`, which is created by the updated `mixedcirc_detect()`.
+#' If some rows were dropped during model fitting, their fitted values remain `NA`.
+#'
 #' @examples
 #' library(mixedcirc)
 #' data("circa_data")
-#' results<-mixedcirc_detect(data_input = circa_data$data_matrix,
-#'                          time = circa_data$time,group = circa_data$group,id = circa_data$id,period = 24,verbose = TRUE)
-#' detrended<-mixedcirc_fitted(results)
 #'
+#' results <- mixedcirc_detect(
+#'   data_input = circa_data$data_matrix,
+#'   meta_input = data.frame(
+#'     time = circa_data$time,
+#'     group = circa_data$group,
+#'     id = circa_data$id
+#'   ),
+#'   time = "time",
+#'   group = "group",
+#'   id = "id",
+#'   period = 24,
+#'   verbose = TRUE
+#' )
 #'
-#' @return
-#' A matrix of detrended data
+#' fitted_vals <- mixedcirc_fitted(results)
 #'
-#' @details
-#'
-#'
-#'
-#' @import stats
-#' @import multcomp
-#' @import doFuture
-#' @import future
-#' @import nlme
-#' @import future.apply
-#' @import lme4
-#' @import limma
-#' @import lmerTest
-#' @import foreach
-#' @import variancePartition
-#' @import mixOmics
-#' @import dplyr
+#' @import methods
+#' @export
+mixedcirc_fitted <- function(fit = NULL, verbose = FALSE) {
 
-mixedcirc_fitted<-function (fit = NULL, per_group = FALSE, verbose = FALSE, ...)
-{
-  if (verbose)
-    cat("Checking inputs ...\n")
-  if (!(is(fit, "mixedcirc_fit") | is(fit, "mixedcirc_fit_list")))
-    stop("input must be mixedcirc_fit_list or mixedcirc_fit!")
-  if (verbose)
-    cat("Performing detrending ...\n")
-  if (is(fit, "mixedcirc_fit_list")) {
-    fitted_values <- matrix(NA, nrow = nrow(fit[1]@exp_design),
-                            ncol = length(fit))
-    gr_pos <- rep("gr", nrow(fit[1]@exp_design))
-    ft_names <- c()
-    for (i in 1:length(fit)) {
-      ft_names <- c(ft_names, rownames(fit[i]@results))
-      if (verbose)
-        cat("Performing detrending on", rownames(fit[i]@results),
-            "...\n")
-      for (grs in unique(gr_pos)) {
-        object <- fit[i]
-        fit_obj <- object@fit
-        gr_pos_l<-gr_pos[rownames(object@exp_design)%in%rownames(object@fit@frame)]
-        indexe <- which(gr_pos_l == grs)
+  if (verbose) cat("Checking inputs ...\n")
 
-        fitted_v <- fitted(fit_obj)[indexe]
-        fitted_values[which(gr_pos == grs)[rownames(object@exp_design[gr_pos == grs,])%in%rownames(object@fit@frame)], i] <- fitted_v
-      }
-    }
-    colnames(fitted_values) <- ft_names
+  if (!(is(fit, "mixedcirc_fit") || is(fit, "mixedcirc_fit_list"))) {
+    stop("input must be `mixedcirc_fit` or `mixedcirc_fit_list`")
   }
-  else {
-    fitted_values <- matrix(NA, nrow = nrow(fit@exp_design),
-                            ncol = 1)
-    gr_pos <- rep("gr", nrow(fit@exp_design))
-    ft_names <- c()
-    if (verbose)
-      cat("Performing detrending on", rownames(fit@results),
-          "...\n")
-    for (grs in unique(gr_pos)) {
 
-      fit_obj <- fit@fit
-      gr_pos_l<-gr_pos[rownames(fit@exp_design)%in%rownames(fit@fit@frame)]
-      indexe <- which(gr_pos_l == grs)
+  if (verbose) cat("Extracting fitted values ...\n")
 
-      fitted_v <- fitted(fit_obj)[indexe]
-
-      fitted_values[which(gr_pos == grs)[rownames(fit@exp_design[gr_pos == grs,])%in%rownames(fit@fit@frame)]] <- as.matrix(fitted_v)
+  .get_feature_name <- function(object, fallback = "feature") {
+    nm <- tryCatch(rownames(object@results), error = function(e) NULL)
+    if (is.null(nm) || length(nm) == 0 || is.na(nm[1]) || nm[1] == "") {
+      return(fallback)
     }
-    colnames(fitted_values) <- rownames(fit@results)
+    nm[1]
   }
-  return(fitted_values)
+
+  .extract_single_fitted <- function(object, verbose = FALSE) {
+    exp_design <- object@exp_design
+    feature_name <- .get_feature_name(object)
+
+    if (verbose) {
+      cat("Extracting fitted values for", feature_name, "...\n")
+    }
+
+    if (!".fitted" %in% names(exp_design)) {
+      stop("exp_design does not contain `.fitted`. Please refit with the updated mixedcirc_detect().")
+    }
+
+    out_mat <- matrix(as.numeric(exp_design$.fitted), ncol = 1)
+    colnames(out_mat) <- feature_name
+    out_mat
+  }
+
+  if (is(fit, "mixedcirc_fit")) {
+    return(.extract_single_fitted(fit, verbose = verbose))
+  }
+
+  out_list <- vector("list", length(fit))
+
+  for (i in seq_along(fit)) {
+    out_list[[i]] <- .extract_single_fitted(fit[i], verbose = verbose)
+  }
+
+  out <- do.call(cbind, out_list)
+  out
 }

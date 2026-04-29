@@ -2,40 +2,83 @@
 % Please edit documentation in R/mixedcirc_interpolate.R
 \name{mixedcirc_interpolate}
 \alias{mixedcirc_interpolate}
-\title{Generate circadian rhythm}
+\title{Generate interpolated circadian rhythm predictions}
 \usage{
 mixedcirc_interpolate(
   x,
   period = 24,
   min_time = NULL,
   max_time = NULL,
-  npoints = 200
+  npoints = 200,
+  fixed_values = list(),
+  expand_vars = NULL,
+  numeric_method = c("mean", "median")[1],
+  factor_method = c("average_observed", "average_equal", "reference")[1],
+  add_expanded_label = TRUE
 )
 }
 \arguments{
-\item{x}{A class of mixedcirc_fit}
+\item{x}{An object of class `mixedcirc_fit` or `mixedcirc_fit_list`.}
 
-\item{period}{The rhythm period. Default: 24}
+\item{period}{Rhythm period. Default `24`.}
 
-\item{min_time}{Minimum time span to do the prediction. If NULL, it will be taken from the fit. Default: NULL}
+\item{min_time}{Minimum time used for interpolation. If `NULL`, taken from the
+fitted object's stored experimental design.}
 
-\item{max_time}{Maximum time span to do the prediction. If NULL, it will be taken from the fit. Default: NULL}
+\item{max_time}{Maximum time used for interpolation. If `NULL`, taken from the
+fitted object's stored experimental design.}
 
-\item{npoints}{Maximun number of data points to generate Default: 200}
+\item{npoints}{Number of interpolated time points to generate. Default `200`.}
+
+\item{fixed_values}{Named list of covariate values to force in prediction.
+For example `list(age = 50, batch = "B1")`.}
+
+\item{expand_vars}{Character vector of extra covariates to keep separate in
+the interpolated output.}
+
+\item{numeric_method}{How numeric nuisance covariates are fixed:
+`"mean"` or `"median"`. Default `"mean"`.}
+
+\item{factor_method}{How nuisance factor covariates are handled:
+`"average_observed"`, `"average_equal"`, or `"reference"`.
+Default `"average_observed"`.}
+
+\item{add_expanded_label}{Logical. If `TRUE`, adds the `.expanded_label`
+column to the returned data. Default `TRUE`.}
 }
 \value{
-A data.frame with all the elements of the model including "Y.hat" that is the interpolated data
+If `x` is a `mixedcirc_fit`, a `data.frame` containing the interpolated
+prediction grid together with a `Y.hat` column of fitted values.
+
+If `x` is a `mixedcirc_fit_list`, a single combined `data.frame` is returned,
+with one additional column named `feature` identifying the source feature.
 }
 \description{
-This functions gets a mixedcirc_fit circadian rhythm fitted using mixedcirc_detect function and interpolate data points between two times.
+This function takes one or more fitted `mixedcirc` objects and generates
+interpolated circadian predictions across a sequence of time points.
 }
 \details{
-In case of RRBS, the data is assumed to be log2. The M-values are calculated as Mathylated-Unmethylated
+This function uses the same interpolation and prediction rules as
+`mixedcirc_fit_plot()`.
 }
 \examples{
 data("circa_data")
 
-results<-mixedcirc_detect(data_input = circa_data$data_matrix,
-time = circa_data$time,group = circa_data$group,id = circa_data$id,period = 24,verbose = TRUE)
-int_data<-mixedcirc_interpolate(results)
+results <- mixedcirc_detect(
+  data_input = circa_data$data_matrix,
+  meta_input = data.frame(
+    time = circa_data$time,
+    group = circa_data$group,
+    id = circa_data$id
+  ),
+  time = "time",
+  group = "group",
+  id = "id",
+  period = 24,
+  verbose = TRUE
+)
+
+int_data_one <- mixedcirc_interpolate(results[1])
+int_data_all <- mixedcirc_interpolate(results)
+
 }

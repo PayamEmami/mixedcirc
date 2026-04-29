@@ -133,7 +133,9 @@ construct_introns <- function(x, update=TRUE) {
 #'
 #' @import data.table
 #' @import GenomicRanges
+#' @import IRanges
 #' @import genomation
+#' @import rtracklayer
 mixed_circ_tss_calculation<-function(location,gff=FALSE,id="gene_id",remove.unusual=TRUE,
                        up.flank=1000,
                        down.flank=1000,
@@ -276,7 +278,6 @@ mixed_circ_tss_calculation<-function(location,gff=FALSE,id="gene_id",remove.unus
   }
 
 }
-
 
 
 
