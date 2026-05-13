@@ -672,7 +672,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
         outputs_fn
       }
 
-    future:::ClusterRegistry("stop")
+    future::plan(future::sequential)
 
     res_tmp<-new("mixedcirc_fit_list",results = lapply(rapply(res, enquote, how="unlist"), eval))
     return((res_tmp))
@@ -866,7 +866,7 @@ mixedcirc_detect <- function(data_input=NULL,time=NULL,group=NULL,id=NULL,
         outputs_fn
       }
 
-    future:::ClusterRegistry("stop")
+    future::plan(future::sequential)
 
     res_tmp<-new("mixedcirc_fit_list",results = lapply(rapply(res, enquote, how="unlist"), eval))
     return((res_tmp))
