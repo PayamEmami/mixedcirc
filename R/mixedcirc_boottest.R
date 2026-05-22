@@ -191,11 +191,20 @@ mixedcirc_boottest<-function(object,nsim,seed,parallel = c("no", "multicore", "s
 
   boot_results<-boot_lm(fit,coeff_fun,nsim = nsim,seed = seed,parallel = parallel, ncpus = ncpus,...)
 
-  p_values<-sapply(names(boot_results$t0),function(nm){
-    mean(abs(boot_results$t[,nm] - mean(boot_results$t[,nm]))>abs(boot_results$t0[nm]))
-  })
+p_values <- sapply(seq_along(boot_results$t0), function(i) {
+  t0_obs <- unname(boot_results$t0[i])
+  t_obs  <- boot_results$t[, i]
+  t_obs  <- t_obs[is.finite(t_obs)]
 
-  names(p_values)<-paste(names(p_values),".p_value",sep="")
+  if (length(t_obs) == 0) {
+    return(NA_real_)
+  }
+
+  z_underH0 <- t_obs - mean(t_obs, na.rm = TRUE)
+  (sum(abs(z_underH0) > abs(t0_obs), na.rm = TRUE) + 1) / (length(t_obs) + 1)
+})
+
+names(p_values) <- paste(names(boot_results$t0), ".p_value", sep = "")
 
   results<-cbind(confint(boot_results, type = boot.type, level = conf_level),
         boot.estimate = boot_results$t0,
