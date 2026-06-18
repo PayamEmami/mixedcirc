@@ -591,7 +591,7 @@ run_model_check_mixed = function( fit, showWarnings=TRUE, dream=FALSE, colineari
   !is.null(findbars(as.formula(formula)))
 }
 
-isDisconnected<-function (){
+.isDisconnected<-function (){
   i = NULL
   possibleError <- tryCatch(suppressWarnings(foreach(i = seq_len(2)) %dopar%
                                                {
