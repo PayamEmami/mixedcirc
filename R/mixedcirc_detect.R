@@ -462,7 +462,7 @@ mixedcirc_detect <- function(
             formula_rhl <- drop_lhs(formula_final)
             voom_res <- voomWithDreamWeights(data_input, formula = formula_rhl, 
                 data = exp_design, BPPARAM = BiocParallel::SnowParam(workers = ncores))
-      voom_res<-voomWithDreamWeights(data_input,formula = formula_final,data = exp_design,BPPARAM = BiocParallel::SnowParam(workers = ncores))
+      voom_res<-voomWithDreamWeights(data_input,formula = formula_rhl,data = exp_design,BPPARAM = BiocParallel::SnowParam(workers = ncores))
     }
     obs_weights <-t(voom_res$weights)
     eset<-t(voom_res$E)
