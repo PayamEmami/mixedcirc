@@ -453,7 +453,15 @@ mixedcirc_detect <- function(
       if(verbose)cat("lm_method is lm, voom will be used ...\n")
       voom_res<-limma::voom(data_input, model_matrix, plot=FALSE)
     }else{
-
+ drop_lhs <- function(f) {
+                if (length(f) == 3L) {
+                  f[[2]] <- NULL
+                }
+                f
+            }
+            formula_rhl <- drop_lhs(formula_final)
+            voom_res <- voomWithDreamWeights(data_input, formula = formula_rhl, 
+                data = exp_design, BPPARAM = BiocParallel::SnowParam(workers = ncores))
       voom_res<-voomWithDreamWeights(data_input,formula = formula_final,data = exp_design,BPPARAM = BiocParallel::SnowParam(workers = ncores))
     }
     obs_weights <-t(voom_res$weights)
