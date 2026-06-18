@@ -1751,4 +1751,5 @@ hasMissingData <- function(form, info) {
   })
 }
 
+setClass("VarParFitList", representation(method = "character"), contains = "list")
                             
