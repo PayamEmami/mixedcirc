@@ -15,107 +15,114 @@ mixedcirc_detect(
   formula_extra = NULL,
   random_effect_type = c("none", "mesor", "mesor_phase")[2],
   lmer.df = c("Satterthwaite", "Kenward-Roger")[1],
-  abs_phase = TRUE,
   obs_weights = NULL,
   RRBS = FALSE,
   replicate_id = NULL,
   force_weight_estimation = FALSE,
   ncores = 1,
   verbose = FALSE,
+  store_models = TRUE,
+  on_error = c("stop", "keep"),
   ...
 )
 }
 \arguments{
-\item{data_input}{A numeric matrix, data.frame, or `DGEList` containing the input data.
-Rows correspond to observations and columns correspond to variables when `data_input`
-is a matrix or data.frame. If a `DGEList` is provided, rows correspond to variables and
-columns correspond to samples, following the standard `limma` / `edgeR` convention.
-When a `DGEList` is supplied, expression values and observational weights are estimated
-internally using `voom()` or `voomWithDreamWeights()`.}
+\item{data_input}{A numeric matrix, data.frame, or \code{DGEList} containing the input data.
+Rows correspond to observations and columns correspond to variables when \code{data_input}
+is a matrix or data.frame. If a \code{DGEList} is provided, rows correspond to variables and
+columns correspond to samples, following the standard \code{limma} / \code{edgeR} convention.
+When a \code{DGEList} is supplied, expression values and observational weights are estimated
+internally using \code{voom()} or \code{voomWithDreamWeights()}.}
 
 \item{meta_input}{A data.frame or matrix containing the sample-level metadata used to build
-the design matrix. This must include the columns referenced by `time`, `group`, `id`,
-`replicate_id`, and any terms in `formula_extra`.}
+the design matrix. This must include the columns referenced by \code{time}, \code{group}, \code{id},
+\code{replicate_id}, and any terms in \code{formula_extra}.}
 
-\item{time}{A character string giving the name of the column in `meta_input` that contains
+\item{time}{A character string giving the name of the column in \code{meta_input} that contains
 circadian time.}
 
-\item{group}{Optional character string giving the name of the grouping column in `meta_input`.
+\item{group}{Optional character string giving the name of the grouping column in \code{meta_input}.
 If provided, group-specific mesor, amplitude, phase, and rhythmicity p-values are returned,
 together with between-group rhythm-difference tests and a global rhythmicity test across groups.
-If `NULL`, all samples are treated as belonging to a single group.}
+If \code{NULL}, all samples are treated as belonging to a single group.}
 
 \item{id}{Optional character string giving the name of the subject identifier column in
-`meta_input`. This is used for random effects when `lm_method = "lme"`.
-If `NULL`, the function switches to ordinary linear regression (`lm`).}
+\code{meta_input}. This is used for random effects when \code{lm_method = "lme"}.
+If \code{NULL}, the function switches to ordinary linear regression (\code{lm}).}
 
 \item{period}{A single numeric value specifying the assumed period of the rhythm.
-Default is `24`.}
+Default is \code{24}.}
 
-\item{lm_method}{Regression framework to use. Must be one of `"lm"` or `"lme"`.
-`"lm"` fits an ordinary linear model. `"lme"` fits a mixed-effects model using
-`lme4::lmer()`. Default is `"lme"`.}
+\item{lm_method}{Regression framework to use. Must be one of \code{"lm"} or \code{"lme"}.
+\code{"lm"} fits an ordinary linear model. \code{"lme"} fits a mixed-effects model using
+\code{lme4::lmer()}. Default is \code{"lme"}.}
 
 \item{formula_extra}{Optional formula containing additional fixed-effect covariates to include
-in the model. The variables in this formula must be column names in `meta_input`.
-For RRBS data, these extra terms are automatically interacted with `scaler`.}
+in the model. The variables in this formula must be column names in \code{meta_input}.
+For RRBS data, these extra terms are automatically interacted with \code{scaler}.}
 
-\item{random_effect_type}{Type of random-effect structure to use when `lm_method = "lme"`.
-Must be one of `"none"`, `"mesor"`, or `"mesor_phase"`.
-`"none"` adds no random effect,
-`"mesor"` adds a random intercept `(1 | id)`,
-and `"mesor_phase"` adds random intercept and rhythm terms.
-For RRBS this becomes `(1 + scaler:inphase + scaler:outphase | id)`;
-otherwise it becomes `(1 + inphase + outphase | id)`.}
+\item{random_effect_type}{Type of random-effect structure to use when \code{lm_method = "lme"}.
+Must be one of \code{"none"}, \code{"mesor"}, or \code{"mesor_phase"}.
+\code{"none"} adds no random effect,
+\code{"mesor"} adds a random intercept \code{(1 | id)},
+and \code{"mesor_phase"} adds random intercept and rhythm terms.
+For RRBS this becomes \code{(1 + scaler:inphase + scaler:outphase | id)};
+otherwise it becomes \code{(1 + inphase + outphase | id)}.}
 
-\item{lmer.df}{Method used by `emmeans` / `emtrends` for denominator degrees of freedom when
-`lm_method = "lme"`. Must be one of `"Satterthwaite"` or `"Kenward-Roger"`.
-Default is `"Satterthwaite"`.}
-
-\item{abs_phase}{Logical. If `TRUE`, absolute values of estimated phases are returned.
-Default is `TRUE`.}
+\item{lmer.df}{Method used by \code{emmeans} / \code{emtrends} for denominator degrees of freedom when
+\code{lm_method = "lme"}. Must be one of \code{"Satterthwaite"} or \code{"Kenward-Roger"}.
+Default is \code{"Satterthwaite"}.}
 
 \item{obs_weights}{Optional matrix of observational weights with the same dimensions as
-`data_input` when `data_input` is a matrix or data.frame. Each column corresponds to one
-variable and each row to one observation. For RRBS input, `obs_weights` is required unless
-weights are estimated internally from a `DGEList`.}
+\code{data_input} when \code{data_input} is a matrix or data.frame. Each column corresponds to one
+variable and each row to one observation. For RRBS input, \code{obs_weights} is required unless
+weights are estimated by setting \code{force_weight_estimation = TRUE}.}
 
-\item{RRBS}{Logical. If `TRUE`, the data are assumed to represent RRBS / BS-seq style
+\item{RRBS}{Logical. If \code{TRUE}, the data are assumed to represent RRBS / BS-seq style
 methylation data, with each biological observation represented by two consecutive rows:
-methylated count followed by unmethylated count. In this mode, `obs_weights` must be supplied
-unless weights are estimated internally, and `replicate_id` must be provided.
-Default is `FALSE`.}
+methylated count followed by unmethylated count. In this mode, \code{obs_weights} must be supplied
+unless weights are estimated internally, and \code{replicate_id} must be provided.
+Default is \code{FALSE}.}
 
-\item{replicate_id}{Character string giving the name of the column in `meta_input` that
+\item{replicate_id}{Character string giving the name of the column in \code{meta_input} that
 identifies unique technical / replicate observations for RRBS data. This is required when
-`RRBS = TRUE`.}
+\code{RRBS = TRUE}.}
 
-\item{force_weight_estimation}{Logical. If `TRUE`, weights are estimated internally using
-`voom()` or `voomWithDreamWeights()` even when `data_input` is not a `DGEList`.
-Default is `FALSE`.}
+\item{force_weight_estimation}{Logical. If \code{TRUE}, weights are estimated internally using
+\code{voom()} or \code{voomWithDreamWeights()} even when \code{data_input} is not a \code{DGEList}.
+Default is \code{FALSE}.}
 
-\item{ncores}{Number of cores to use for parallel processing. Default is `1`.}
+\item{ncores}{Number of cores to use for parallel processing. Default is \code{1}.}
 
-\item{verbose}{Logical. If `TRUE`, progress messages are printed. Default is `FALSE`.}
+\item{verbose}{Logical. If \code{TRUE}, progress messages are printed. Default is \code{FALSE}.}
+
+\item{store_models}{Logical. If \code{TRUE}, retain each fitted model for downstream
+prediction, bootstrap and diagnostic methods. Set to \code{FALSE} for a much
+smaller result object when only the tabular results are needed.}
+
+\item{on_error}{How feature-specific fitting errors are handled. \code{"stop"}
+preserves fail-fast behavior. \code{"keep"} returns a failed result with the
+error recorded in \code{\link[=mixedcirc_results]{mixedcirc_results()}} diagnostics and continues fitting
+the remaining features.}
 
 \item{...}{Additional arguments passed to the underlying model-fitting function.}
 }
 \value{
-An object of class `mixedcirc_fit_list`. Each element corresponds to one analyzed variable
+An object of class \code{mixedcirc_fit_list}. Each element corresponds to one analyzed variable
 and contains:
 \describe{
-  \item{results}{A one-row data.frame with estimated mesor, amplitude, phase, and p-values.}
-  \item{fit}{The fitted model object (`lm` or `lmerMod`).}
-  \item{exp_design}{The experimental design used for fitting, including generated `inphase`
-  and `outphase` columns.}
-  \item{type}{A character string indicating the analysis type, e.g. `"expression"` or `"RRBS"`.}
+\item{results}{A one-row data.frame with estimated mesor, amplitude, phase, and p-values.}
+\item{fit}{The fitted model object (\code{lm} or \code{lmerMod}).}
+\item{exp_design}{The experimental design used for fitting, including generated \code{inphase}
+and \code{outphase} columns.}
+\item{type}{A character string indicating the analysis type, e.g. \code{"expression"} or \code{"RRBS"}.}
 }
 }
 \description{
 Fits one model per variable to estimate mesor, amplitude, phase, within-group rhythmicity,
 and, when group information is provided, between-group differences in rhythmicity.
-The function supports ordinary linear regression (`lm`) and linear mixed-effects regression
-(`lmer` via `lme4`). It can also analyze RRBS-style methylation data using a paired
+The function supports ordinary linear regression (\code{lm}) and linear mixed-effects regression
+(\code{lmer} via \code{lme4}). It can also analyze RRBS-style methylation data using a paired
 methylated / unmethylated representation.
 }
 \details{
@@ -144,32 +151,37 @@ For RRBS data without group information, the fixed-effects model is
 measure ~ 0 + replicate_id + scaler + inphase:scaler + outphase:scaler
 }
 
-Additional fixed effects supplied through `formula_extra` are appended to the model.
+Additional fixed effects supplied through \code{formula_extra} are appended to the model.
 
-Rhythmicity within each group is tested jointly from the estimated `inphase` and `outphase`
-coefficients using `emmeans` / `emtrends`. In grouped analyses, the function also computes
+Rhythmicity within each group is tested jointly from the estimated \code{inphase} and \code{outphase}
+coefficients using \code{emmeans} / \code{emtrends}. In grouped analyses, the function also computes
 pairwise between-group tests for differences in rhythm coefficients, as well as a global
 joint rhythmicity test across all groups.
 
 Amplitude is computed as
 \deqn{\sqrt{\beta_{in}^2 + \beta_{out}^2}}
-and phase is derived from the estimated sine and cosine coefficients using `calc_phase()`.
+and phase is derived from the estimated sine and cosine coefficients using \code{calc_phase()}.
+The returned phase is the signed shift \eqn{\phi} in
+\deqn{M + A cos(2\pi t / period + \phi).}
+Consequently, peak time is obtained from \eqn{-\phi}; use
+\code{mixedcirc_detectpeaks()} to perform this conversion and wrap the result into
+the observed cycle.
 
-For RRBS input, the rows of `data_input` are assumed to alternate between methylated and
+For RRBS input, the rows of \code{data_input} are assumed to alternate between methylated and
 unmethylated counts for each biological observation. For example, if the biological samples are
-`A1_1`, `A1_2`, `A2_1`, and `B1_1`, then the rows of `data_input` must be ordered as
+\code{A1_1}, \code{A1_2}, \code{A2_1}, and \code{B1_1}, then the rows of \code{data_input} must be ordered as
 \preformatted{
 A1_1_methylated, A1_1_unmethylated,
 A1_2_methylated, A1_2_unmethylated,
 A2_1_methylated, A2_1_unmethylated,
 B1_1_methylated, B1_1_unmethylated
 }
-In this case, `meta_input` should contain one row per biological observation
-(`A1_1`, `A1_2`, `A2_1`, `B1_1`), and the function internally expands it to match the
+In this case, \code{meta_input} should contain one row per biological observation
+(\code{A1_1}, \code{A1_2}, \code{A2_1}, \code{B1_1}), and the function internally expands it to match the
 methylated / unmethylated row structure.
 
-If weights are not supplied directly, they may be estimated from count-like data using
-`limma::voom()` for ordinary linear models or `voomWithDreamWeights()`
+If weights are not supplied directly, they may be estimated from count-like matrix data using
+\code{limma::voom()} for ordinary linear models or \code{voomWithDreamWeights()}
 for mixed-effects models.
 
 No multiple-testing adjustment is performed inside this function.
@@ -188,6 +200,7 @@ res <- mixedcirc_detect(
   group = "group",
   id = "id",
   period = 24,
+  lm_method = "lm",
   verbose = TRUE
 )
 

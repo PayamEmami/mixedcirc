@@ -13,7 +13,7 @@
 #'
 #' @details
 #' This function returns the fitted values stored in the `.fitted` column of
-#' `exp_design`, which is created by the updated `mixedcirc_detect()`.
+#' `exp_design`, which is created by `mixedcirc_detect()`.
 #' If some rows were dropped during model fitting, their fitted values remain `NA`.
 #'
 #' @examples
@@ -21,7 +21,7 @@
 #' data("circa_data")
 #'
 #' results <- mixedcirc_detect(
-#'   data_input = circa_data$data_matrix,
+#'   data_input = circa_data$data_matrix[, 1, drop = FALSE],
 #'   meta_input = data.frame(
 #'     time = circa_data$time,
 #'     group = circa_data$group,
@@ -36,14 +36,20 @@
 #'
 #' fitted_vals <- mixedcirc_fitted(results)
 #'
-#' @import methods
 #' @export
 mixedcirc_fitted <- function(fit = NULL, verbose = FALSE) {
 
-  if (verbose) cat("Checking inputs ...\n")
+  if (isTRUE(verbose)) cat("Checking inputs ...\n")
+
+  if (!is.logical(verbose) || length(verbose) != 1L || is.na(verbose)) {
+    stop("verbose must be TRUE or FALSE")
+  }
 
   if (!(is(fit, "mixedcirc_fit") || is(fit, "mixedcirc_fit_list"))) {
     stop("input must be `mixedcirc_fit` or `mixedcirc_fit_list`")
+  }
+  if (is(fit, "mixedcirc_fit_list") && length(fit) == 0L) {
+    stop("fit must contain at least one fitted feature")
   }
 
   if (verbose) cat("Extracting fitted values ...\n")
@@ -65,7 +71,7 @@ mixedcirc_fitted <- function(fit = NULL, verbose = FALSE) {
     }
 
     if (!".fitted" %in% names(exp_design)) {
-      stop("exp_design does not contain `.fitted`. Please refit with the updated mixedcirc_detect().")
+      stop("exp_design does not contain `.fitted`; refit the data with mixedcirc_detect()")
     }
 
     out_mat <- matrix(as.numeric(exp_design$.fitted), ncol = 1)

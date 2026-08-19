@@ -1,0 +1,8 @@
+bibentry(
+  bibtype = "Manual",
+  title = "mixedcirc: Mixed-Effects Models for Circadian Rhythm Analysis",
+  author = person("Payam", "Emami"),
+  year = "2026",
+  note = "R package version 0.2.2",
+  url = "https://github.com/mixedcirc/mixedcirc"
+)

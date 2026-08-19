@@ -2,7 +2,7 @@
 % Please edit documentation in R/mixedcirc_integrate.R
 \name{mixedcirc_integrate}
 \alias{mixedcirc_integrate}
-\title{Integrate circadian datasets using SGCCA}
+\title{Experimental integration of circadian datasets using SGCCA}
 \usage{
 mixedcirc_integrate(
   data_input = NULL,
@@ -24,64 +24,67 @@ mixedcirc_integrate(
 )
 }
 \arguments{
-\item{data_input}{A named list of numeric matrices or data.frames. Each element
+\item{data_input}{A named list containing at least two numeric matrices or
+data frames. Each element
 is one dataset, with rows corresponding to samples and columns to variables.
 All datasets must have the same number of rows.}
 
 \item{meta_input}{A data.frame or matrix containing sample-level metadata.
-Must include the columns referenced by `time`, `group`, and `id` when used.}
+Must include the columns referenced by \code{time}, \code{group}, and \code{id} when used.}
 
-\item{time}{A character string giving the name of the column in `meta_input`
+\item{time}{A character string giving the name of the column in \code{meta_input}
 that contains time.}
 
 \item{group}{Optional character string giving the name of the grouping column
-in `meta_input`. If supplied, a group-design block is added.}
+in \code{meta_input}. If supplied, a group-design block is added.}
 
 \item{id}{Optional character string giving the name of the subject identifier
-column in `meta_input`. Used only when `decompose = TRUE`.}
+column in \code{meta_input}. Used only when \code{decompose = TRUE}.}
 
-\item{period}{Numeric scalar specifying the assumed period. Default `24`.}
+\item{period}{Numeric scalar specifying the assumed period. Default \code{24}.}
 
 \item{ncomp}{Number of SGCCA components to estimate. Must be a positive integer.
-Default `2`.}
+Default \code{2}.}
 
 \item{variables}{Optional named list controlling the number of variables kept
-per component in each dataset. Each element should be an integer vector of
-length `ncomp`. Names must match `data_input`.}
+per component in each dataset. Each supplied element must be an integer
+vector of length \code{ncomp}; its name must identify a block in \code{data_input}.
+Blocks omitted from this list keep all variables.}
 
-\item{decompose}{Logical. If `TRUE`, within-subject variation is extracted for
+\item{decompose}{Logical. If \code{TRUE}, within-subject variation is extracted for
 each dataset before integration.
-Requires `id`. Default `FALSE`.}
+Requires \code{id}. Default \code{FALSE}.}
 
-\item{center}{Logical. If `TRUE`, columns of each dataset are centered.
-Default `TRUE`.}
+\item{center}{Logical. If \code{TRUE}, columns of each dataset are centered.
+Default \code{TRUE}.}
 
-\item{scale}{Logical. If `TRUE`, columns of each dataset are scaled to unit
-variance. Default `FALSE`.}
+\item{scale}{Logical. If \code{TRUE}, columns of each dataset are scaled to unit
+variance. Default \code{FALSE}.}
 
-\item{merge}{Logical. If `TRUE`, group and rhythm design variables are merged
-into a single design block. Default `FALSE`.}
+\item{merge}{Logical. If \code{TRUE}, group and rhythm design variables are merged
+into a single design block. Default \code{FALSE}.}
 
-\item{no_correlation}{Logical. If `TRUE` and group information is provided in
-separate blocks, the covariance between the group-design block and the
-rhythm-design block is fixed to zero. Default `FALSE`.}
+\item{no_correlation}{Logical. If \code{TRUE} and group information is provided in
+separate blocks, the corresponding entries of the SGCCA design matrix are
+set to zero, so the group and rhythm blocks are not directly coupled.
+Default \code{FALSE}.}
 
-\item{no_interaction}{Logical. If `TRUE`, no group-specific rhythm interaction
+\item{no_interaction}{Logical. If \code{TRUE}, no group-specific rhythm interaction
 is encoded. In grouped analysis, rhythm is then represented by common
-`inphase` and `outphase` terms and group is represented separately.
-Default `FALSE`.}
+\code{inphase} and \code{outphase} terms and group is represented separately.
+Default \code{FALSE}.}
 
-\item{max.iter}{Maximum number of SGCCA iterations. Default `100000`.}
+\item{max.iter}{Maximum number of SGCCA iterations. Default \code{100000}.}
 
-\item{verbose}{Logical. If `TRUE`, progress messages are printed. Default `FALSE`.}
+\item{verbose}{Logical. If \code{TRUE}, progress messages are printed. Default \code{FALSE}.}
 }
 \value{
-An object of class `mixedcirc_integration` containing:
+An object of class \code{mixedcirc_integration} containing:
 \describe{
-  \item{partial}{A named list of partial block scores, one matrix per dataset.}
-  \item{average}{A matrix of average sample scores across biological datasets.}
-  \item{loadings}{A named list of loading matrices, one per dataset.}
-  \item{model}{The fitted model object.}
+\item{partial}{A named list of partial block scores, one matrix per dataset.}
+\item{average}{A matrix of average sample scores across biological datasets.}
+\item{loadings}{A named list of loading matrices, one per dataset.}
+\item{model}{The fitted model object.}
 }
 }
 \description{
@@ -97,14 +100,21 @@ from the sample metadata:
 \deqn{inphase = \cos(2\pi t / period)}
 \deqn{outphase = \sin(2\pi t / period)}
 
-If group information is provided and `no_interaction = FALSE`, the rhythm
-block uses group-specific circadian terms. If `no_interaction = TRUE`, the
+If group information is provided and \code{no_interaction = FALSE}, the rhythm
+block uses group-specific circadian terms. If \code{no_interaction = TRUE}, the
 rhythm block is shared across groups and the group structure is represented
 separately.
-
-The resulting partial or average scores can be used as integrated features in
-downstream analyses such as `mixedcirc_detect()`.
 }
+\section{Experimental status}{
+
+This function is experimental. Because the SGCCA model is supervised by the
+time and optional group variables, its scores are selected to follow those
+variables. Testing the learned scores against the same time or group variables
+in the same samples does not provide independent confirmatory evidence. Use the
+scores for exploratory analysis, or validate them on independent samples or
+with a resampling procedure that repeats the complete integration workflow.
+}
+
 \examples{
 library(mixedcirc)
 data("circa_data")

@@ -2,7 +2,7 @@
 % Please edit documentation in R/mixedcirc_boottest.R
 \name{mixedcirc_boottest}
 \alias{mixedcirc_boottest}
-\title{Bootstrap Testing for Circadian Data}
+\title{Parametric Bootstrap Uncertainty for Circadian Rhythm Summaries}
 \usage{
 mixedcirc_boottest(
   object,
@@ -12,15 +12,14 @@ mixedcirc_boottest(
   ncpus = getOption("boot.ncpus", 1L),
   boot.type = c("perc", "basic", "norm")[1],
   conf_level = 0.95,
-  abs_phase = TRUE,
   wrap_phase = TRUE,
   ...
 )
 }
 \arguments{
-\item{object}{A fitted model object of class `mixedcirc_fit`.}
+\item{object}{A fitted model object of class \code{mixedcirc_fit}.}
 
-\item{nsim}{Number of bootstrap simulations.}
+\item{nsim}{Number of parametric bootstrap replicates.}
 
 \item{seed}{Seed for reproducibility.}
 
@@ -28,35 +27,58 @@ mixedcirc_boottest(
 
 \item{ncpus}{Number of CPU cores to use.}
 
-\item{boot.type}{Type of bootstrap confidence interval.}
+\item{boot.type}{Type of bootstrap confidence interval (\code{"perc"}, \code{"basic"},
+or \code{"norm"}); applied on the circular deviation scale for phase
+parameters and on the raw scale for mesor/amplitude.}
 
 \item{conf_level}{Confidence level for the bootstrap intervals.}
 
-\item{abs_phase}{Logical; if `TRUE`, absolute phases are returned.}
-
-\item{wrap_phase}{Logical; if `TRUE` (default), pairwise phase differences
-are wrapped to the interval [-pi, pi] before being returned. This gives
+\item{wrap_phase}{Logical; if \code{TRUE} (default), pairwise phase differences
+are wrapped to the interval \verb{[-pi, pi)} before being returned. This gives
 the shortest signed circular phase difference between groups. Ignored for
 ungrouped analyses.}
 
-\item{...}{Additional arguments passed to `boot_lm()`.}
+\item{...}{Additional arguments passed to \code{boot_lm()}.}
 }
 \value{
-A `mixedcirc_boot` object.
+A \code{mixedcirc_boot} object. Its \code{results} data frame reports
+\code{boot.lower}/\code{boot.upper} (bootstrap confidence interval), \code{boot.estimate}
+(point estimate), \code{boot.SE} (bootstrap standard deviation - the circular
+deviation-based SD for phase parameters), and \code{pvalue} (bootstrap p-value
+for the null that the parameter is zero) for every returned mesor,
+amplitude, and phase summary, including the between-group
+contrasts when a grouped model is used. Phase-scale parameters are in
+radians; convert a phase difference to time units using the fitted
+model's period if a peak-time difference is preferred, e.g.
+\code{delta_t <- ((-delta_phi * period / (2 * pi) + period / 2) \%\% period) - period / 2} for a result wrapped to \verb{[-period/2, period/2)}.
 }
 \description{
-This function performs bootstrap testing on fitted circadian models
-from `mixedcirc_detect()`, supporting:
-- lm and lmer fits
-- RRBS and non-RRBS analyses
-- grouped and ungrouped models
+Uses a parametric bootstrap to estimate uncertainty for mesor, amplitude,
+and phase summaries from a fitted \code{mixedcirc_detect()} model, and
+for the supported between-group contrasts of these quantities when a
+grouped (multi-condition) model is used. Supports \code{lm} and \code{lmer} fits,
+RRBS and non-RRBS analyses, and grouped and ungrouped models.
 }
 \details{
-The function uses `boot_lm()` to bootstrap mesor, amplitude, and phase
-summaries derived from the fitted model. When grouped analyses are used,
-pairwise group differences are also returned.
+The bootstrap is \strong{parametric}, not case resampling: for each replicate,
+new response values are simulated from the fitted model (\code{stats::simulate()}
+on the retained \code{lm}/\code{merMod} object, using its estimated fixed effects and,
+for mixed models, its estimated random-effect and residual variance
+components), the model is refit to the simulated data, and the requested
+summaries are recomputed from the refit. Subjects and observation times are
+not resampled; only the response is resimulated. This differs from a
+case-resampling (nonparametric) bootstrap, in which subjects/rows are
+resampled with replacement from the observed data.
 
-By default, phase differences between groups are wrapped onto the circular
-interval [-pi, pi], which represents the shortest signed phase difference.
-This is usually the most meaningful representation in circadian analyses.
+Phase is circular. Confidence intervals, standard errors, and bootstrap
+p-values for parameters whose names begin with \code{"phase"} are therefore
+calculated from wrapped deviations around the point estimate. This prevents
+intervals near the \code{-pi}/\code{pi} boundary from spanning almost the full cycle.
+Mesor and amplitude are handled on their ordinary linear scales.
+
+Pairwise group differences follow the convention \verb{<group_1>vs<group_2> = <group_1> - <group_2>} for mesor and amplitude; the corresponding phase
+difference is the shortest signed circular difference
+\code{wrap(phase_group_1 - phase_group_2)} when \code{wrap_phase = TRUE}. Individual
+phase estimates retain the signed model convention used by
+\code{mixedcirc_detect()}.
 }

@@ -82,6 +82,13 @@
 #' `limma::voom()` for ordinary linear models or `voomWithDreamWeights()`
 #' for mixed-effects models.
 #'
+#' This is a two-stage preprocessing procedure. When the scientific analysis
+#' requires adjustment for a linear time trend or another measured covariate,
+#' fitting it simultaneously with the harmonic terms through
+#' `mixedcirc_detect(formula_extra = ~ time + ...)` generally gives more direct
+#' inference. Use residualization when a separate detrended matrix is needed,
+#' and record the exact model used to create it.
+#'
 #' @examples
 #' data("circa_data")
 #'
@@ -98,15 +105,6 @@
 #'   verbose = TRUE
 #' )
 #'
-#' @import stats
-#' @import methods
-#' @import doFuture
-#' @import future
-#' @import foreach
-#' @import lme4
-#' @import limma
-#' @import parallel
-#' @import BiocParallel
 #' @export
 mixedcirc_remove_trend <- function(
     data_input = NULL,
@@ -127,18 +125,10 @@ mixedcirc_remove_trend <- function(
     ...
 ) {
 
-  registerDoFuture()
-  if (ncores > 1) {
-    plan(multisession, workers = ncores)
-  } else {
-    plan(sequential)
-  }
+  previous_plan <- future::plan("list")
+  on.exit(future::plan(previous_plan), add = TRUE)
 
-  on.exit({
-    future:::ClusterRegistry("stop")
-  }, add = TRUE)
-
-  if (verbose) cat("Checking inputs ...\n")
+  if (isTRUE(verbose)) cat("Checking inputs ...\n")
 
   # ---------------------------------------------------------
   # Input checks
@@ -160,9 +150,68 @@ mixedcirc_remove_trend <- function(
   }
 
   meta_input <- as.data.frame(meta_input)
+  if (anyDuplicated(names(meta_input))) {
+    stop("meta_input must have unique column names")
+  }
+  reserved_metadata <- intersect(
+    names(meta_input),
+    c("measure", "inphase", "outphase", "scaler", ".used_in_fit",
+      ".fitted", ".residual", ".weight", ".mixedcirc_weight")
+  )
+  if (length(reserved_metadata) > 0L) {
+    stop(
+      "meta_input uses column names reserved by mixedcirc: ",
+      paste(reserved_metadata, collapse = ", ")
+    )
+  }
 
-  if (is.null(time) || !time %in% colnames(meta_input)) {
+  if (!is.character(time) || length(time) != 1L || is.na(time) ||
+      time == "" || !time %in% colnames(meta_input)) {
     stop("time must be a column name in meta_input")
+  }
+  if (make.names(time) != time) {
+    stop("time must refer to a syntactically valid R column name")
+  }
+
+  if (!is.numeric(meta_input[[time]]) || all(!is.finite(meta_input[[time]])) ||
+      any(is.infinite(meta_input[[time]]))) {
+    stop("the time column must be numeric, contain a finite value, and not contain Inf or -Inf")
+  }
+
+  if (!is.numeric(ncores) || length(ncores) != 1L || !is.finite(ncores) ||
+      ncores < 1 || ncores %% 1 != 0) {
+    stop("ncores must be a positive integer")
+  }
+  ncores <- as.integer(ncores)
+
+  logical_args <- list(
+    RRBS = RRBS,
+    remove_trend_separate_groups = remove_trend_separate_groups,
+    force_weight_estimation = force_weight_estimation,
+    verbose = verbose
+  )
+  bad_logical <- !vapply(
+    logical_args,
+    function(z) is.logical(z) && length(z) == 1L && !is.na(z),
+    logical(1)
+  )
+  if (any(bad_logical)) {
+    stop(names(logical_args)[which(bad_logical)[1L]], " must be TRUE or FALSE")
+  }
+
+  if (is.data.frame(data_input)) {
+    numeric_columns <- vapply(data_input, is.numeric, logical(1))
+    if (any(!numeric_columns)) {
+      stop("all columns of data_input must be numeric")
+    }
+  }
+  if (!is(data_input, "DGEList") &&
+      (!is.numeric(as.matrix(data_input)) || any(is.infinite(as.matrix(data_input))))) {
+    stop("data_input must contain numeric values without Inf or -Inf")
+  }
+
+  if (RRBS && is(data_input, "DGEList")) {
+    stop("RRBS = TRUE is supported for paired matrix/data.frame input, not DGEList input")
   }
 
   if (!is(data_input, "DGEList")) {
@@ -183,18 +232,37 @@ mixedcirc_remove_trend <- function(
 
   multiple_groups <- FALSE
   if (!is.null(group)) {
+    if (!is.character(group) || length(group) != 1L || is.na(group) || group == "") {
+      stop("group must be NULL or a single column name in meta_input")
+    }
     if (!group %in% colnames(meta_input)) {
       stop("group must be the name of a column in meta_input")
     }
-    multiple_groups <- TRUE
+    if (make.names(group) != group) {
+      stop("group must refer to a syntactically valid R column name")
+    }
+    observed_groups <- unique(meta_input[[group]][!is.na(meta_input[[group]])])
+    if (length(observed_groups) == 0L) {
+      stop("the supplied group column has no observed values")
+    }
+    multiple_groups <- length(observed_groups) > 1L
+    if (!multiple_groups) {
+      warning("The supplied group column has fewer than two observed groups; detrending without group separation")
+    }
   } else {
     meta_input$dummy_group <- "all"
     group <- "dummy_group"
   }
 
   if (!is.null(id)) {
+    if (!is.character(id) || length(id) != 1L || is.na(id) || id == "") {
+      stop("id must be NULL or a single column name in meta_input")
+    }
     if (!id %in% colnames(meta_input)) {
       stop("id must be the name of a column in meta_input")
+    }
+    if (make.names(id) != id) {
+      stop("id must refer to a syntactically valid R column name")
     }
   } else {
     warning("No id information was provided! Switching to normal linear regression!")
@@ -206,9 +274,26 @@ mixedcirc_remove_trend <- function(
   lm_method <- match.arg(lm_method, c("lm", "lme"))
   random_effect_type <- match.arg(random_effect_type, c("none", "mesor"))
 
+  if (lm_method == "lme" && random_effect_type == "none") {
+    warning("random_effect_type = 'none' has no random effect; using lm_method = 'lm'")
+    lm_method <- "lm"
+  }
+
+  if (lm_method == "lme" && length(unique(meta_input[[id]][!is.na(meta_input[[id]])])) < 2L) {
+    stop("mixed-effects detrending requires at least two observed id levels")
+  }
+
   if (RRBS) {
-    if (is.null(replicate_id) || !replicate_id %in% colnames(meta_input)) {
+    if (!is.character(replicate_id) || length(replicate_id) != 1L ||
+        is.na(replicate_id) || replicate_id == "" ||
+        !replicate_id %in% colnames(meta_input)) {
       stop("For RRBS data, replicate_id must be set and must be a column name in meta_input")
+    }
+    if (make.names(replicate_id) != replicate_id) {
+      stop("replicate_id must refer to a syntactically valid R column name")
+    }
+    if (anyNA(meta_input[[replicate_id]]) || anyDuplicated(meta_input[[replicate_id]])) {
+      stop("For RRBS data, replicate_id must be non-missing and unique for every biological observation")
     }
 
     if (is.null(obs_weights) && !is(data_input, "DGEList") && !force_weight_estimation) {
@@ -217,14 +302,24 @@ mixedcirc_remove_trend <- function(
   }
 
   if (!is.null(obs_weights) && !is(data_input, "DGEList")) {
-    if (!all(dim(obs_weights) == dim(data_input))) {
+    if (!is.matrix(obs_weights) && !is.data.frame(obs_weights)) {
+      stop("obs_weights must be a numeric matrix or data.frame")
+    }
+    obs_weights <- as.matrix(obs_weights)
+    if (!identical(dim(obs_weights), dim(data_input))) {
       stop("obs_weights must be the same size as data_input")
+    }
+    if (!is.numeric(obs_weights) || any(!is.finite(obs_weights)) || any(obs_weights <= 0)) {
+      stop("obs_weights must contain finite positive numeric values")
     }
   }
 
   if (!is.null(formula_extra)) {
     if (!inherits(formula_extra, "formula")) {
       stop("formula_extra must be a formula")
+    }
+    if (length(formula_extra) != 2L) {
+      stop("formula_extra must be one-sided, for example ~ age + batch")
     }
 
     missing_formula_extra_terms <- setdiff(all.vars(formula_extra), colnames(meta_input))
@@ -237,9 +332,20 @@ mixedcirc_remove_trend <- function(
   }
 
   if (!is(data_input, "DGEList")) {
-    eset <- data_input[, , drop = FALSE]
+    eset <- as.matrix(data_input[, , drop = FALSE])
   } else {
     eset <- NA
+  }
+
+  feature_count <- if (is(data_input, "DGEList")) nrow(data_input) else ncol(data_input)
+  if (feature_count < 1L) {
+    stop("data_input must contain at least one feature")
+  }
+
+  if (ncores > 1L) {
+    future::plan(future::multisession, workers = ncores)
+  } else {
+    future::plan(future::sequential)
   }
 
   # ---------------------------------------------------------
@@ -298,17 +404,20 @@ mixedcirc_remove_trend <- function(
   }
 
   safe_fit_model <- function(formula_use, data_use, weights_use, lm_method, ...) {
+    if (!is.null(weights_use)) {
+      data_use$.mixedcirc_weight <- as.numeric(weights_use)
+    }
     if (lm_method == "lm") {
       if (is.null(weights_use)) {
         stats::lm(formula_use, data = data_use, ...)
       } else {
-        stats::lm(formula_use, data = data_use, weights = weights_use, ...)
+        stats::lm(formula_use, data = data_use, weights = .mixedcirc_weight, ...)
       }
     } else {
       if (is.null(weights_use)) {
         lme4::lmer(formula_use, data = data_use, ...)
       } else {
-        lme4::lmer(formula_use, data = data_use, weights = weights_use, ...)
+        lme4::lmer(formula_use, data = data_use, weights = .mixedcirc_weight, ...)
       }
     }
   }
@@ -389,12 +498,14 @@ mixedcirc_remove_trend <- function(
   if (is(data_input, "DGEList") || force_weight_estimation) {
     if (verbose) cat("Estimating weights for the input variables ...\n")
 
+    voom_input <- if (is(data_input, "DGEList")) data_input else t(as.matrix(data_input))
+
     if (lm_method == "lm") {
       if (verbose) cat("lm_method is lm, voom will be used ...\n")
-      voom_res <- limma::voom(data_input, model_matrix, plot = FALSE)
+      voom_res <- limma::voom(voom_input, model_matrix, plot = FALSE)
     } else {
       voom_res <- voomWithDreamWeights(
-        data_input,
+        voom_input,
         formula = formula_with_random,
         data = exp_design,
         BPPARAM = BiocParallel::SnowParam(workers = ncores)
@@ -407,7 +518,11 @@ mixedcirc_remove_trend <- function(
 
   feature_names <- colnames(eset)
   if (length(feature_names) == 0) {
-    feature_names <- seq_len(ncol(eset))
+    feature_names <- paste0("feature_", seq_len(ncol(eset)))
+  }
+  if (anyDuplicated(feature_names)) {
+    warning("Duplicated feature names were made unique")
+    feature_names <- make.unique(as.character(feature_names))
   }
 
   chunks <- parallel::splitIndices(ncol(eset), min(ncol(eset), ncores))
@@ -416,7 +531,7 @@ mixedcirc_remove_trend <- function(
   # ---------------------------------------------------------
   # Main fitting loop
   # ---------------------------------------------------------
-  res <- foreach(chIndx = chunks) %dopar% {
+  res <- foreach(chIndx = chunks) %dofuture% {
 
     outputs_fn <- foreach(i = chIndx) %do% {
 

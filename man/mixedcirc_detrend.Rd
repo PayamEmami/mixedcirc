@@ -13,36 +13,37 @@ mixedcirc_detrend(
 )
 }
 \arguments{
-\item{fit}{An object of class `mixedcirc_fit` or `mixedcirc_fit_list`.}
+\item{fit}{An object of class \code{mixedcirc_fit} or \code{mixedcirc_fit_list}.}
 
-\item{per_group}{Logical. If `TRUE`, detrending is performed separately within
-each group when group information was used in the original model. Default `FALSE`.}
+\item{per_group}{Logical. If \code{TRUE}, detrending is performed separately within
+each group when group information was used in the original model. Default \code{FALSE}.}
 
-\item{use_mixed_for_detrend}{Logical. If `TRUE`, mixed-model fits are detrended
+\item{use_mixed_for_detrend}{Logical. If \code{TRUE}, mixed-model fits are detrended
 using a random intercept for the original subject identifier when possible.
-If the mixed detrending model fails, the function falls back to `lm`.
-Default `TRUE`.}
+If the mixed detrending model fails, the function falls back to \code{lm}.
+Default \code{TRUE}.}
 
-\item{verbose}{Logical. If `TRUE`, progress messages are printed. Default `FALSE`.}
+\item{verbose}{Logical. If \code{TRUE}, progress messages are printed. Default \code{FALSE}.}
 
-\item{...}{Additional arguments passed to the detrending model (`lm` or `lmer`).}
+\item{...}{Additional arguments passed to the detrending model (\code{lm} or \code{lmer}).}
 }
 \value{
 A numeric matrix of detrended fitted values. Rows correspond to rows in the
-original `exp_design` stored inside the fitted object, and columns correspond
+original \code{exp_design} stored inside the fitted object, and columns correspond
 to features.
 }
 \description{
 This function removes a linear trend from the fitted values obtained from
-a `mixedcirc_fit` or `mixedcirc_fit_list` object. The detrending is performed
-by regressing the fitted values on the original time variable and returning
-the residuals from that regression.
+a \code{mixedcirc_fit} or \code{mixedcirc_fit_list} object. It regresses stored fitted
+values on the original time variable and returns the residuals. This is a
+descriptive post-processing helper; it does not refit the circadian model or
+alter its inferential results.
 }
 \details{
-The function first tries to use the `.fitted` column stored in `object@exp_design`
-by the updated `mixedcirc_detect()` function. If that column is unavailable or
+The function first tries to use the \code{.fitted} column stored in \code{object@exp_design}
+by \code{mixedcirc_detect()}. If that column is unavailable or
 unusable, fitted values are extracted directly from the fitted model and aligned
-back to `exp_design`.
+back to \code{exp_design}.
 
 It then fits a regression of the form
 \preformatted{
@@ -50,17 +51,17 @@ fitted_value ~ time
 }
 and returns the residuals from that regression.
 
-If `per_group = TRUE`, the detrending is performed separately within each group.
+If \code{per_group = TRUE}, the detrending is performed separately within each group.
 
 For mixed-model fits, a detrending model with a random intercept,
 \preformatted{
 fitted_value ~ time + (1 | id)
 }
-is attempted when the original `id` variable is available and
-`use_mixed_for_detrend = TRUE`. If this fails, the function falls back to
+is attempted when the original \code{id} variable is available and
+\code{use_mixed_for_detrend = TRUE}. If this fails, the function falls back to
 ordinary weighted linear regression.
 
-Stored `.weight` values are only used when they exist and contain at least
-some non-missing values. If `.weight` is entirely `NA` (for example because
+Stored \code{.weight} values are only used when they exist and contain at least
+some non-missing values. If \code{.weight} is entirely \code{NA} (for example because
 the original model was unweighted), weights are ignored automatically.
 }

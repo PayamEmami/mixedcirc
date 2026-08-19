@@ -1,37 +1,67 @@
 Package: mixedcirc
 Type: Package
-Title: Circadian rhythm analysis using mixed models
-Version: 0.1.0
-Author: Payam Emami
-Maintainer: Payam Emami <payam.emami@scilifelab.se>
-Description: mixedcirc performs differential circadian rhythm analysis using mixed models.
-    This is mostly used when the dataset includes repeated measurements.
+Title: Mixed-Effects Models for Circadian Rhythm Analysis
+Version: 0.2.2
+Authors@R: person(
+    given = "Payam",
+    family = "Emami",
+    email = "payam.emami@scilifelab.se",
+    role = c("aut", "cre")
+  )
+Description: Fits harmonic regression models for circadian and differential
+    circadian analysis. Both ordinary linear models and mixed-effects models
+    are supported, including repeated measurements, group-specific rhythms,
+    direct joint differential-rhythm tests, observation-level weights,
+    paired bisulfite-sequencing counts, bootstrap uncertainty, peak-time
+    estimation, subject-specific rhythms, diagnostics, publication-oriented
+    plots, tidy summaries, detrending, simulation, and exploratory multi-omics
+    integration.
 License: Apache License (>= 2)
+URL: https://github.com/mixedcirc/mixedcirc
+BugReports: https://github.com/mixedcirc/mixedcirc/issues
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.3.3
-Depends: 
-    stats,
-    multcomp,
+Depends:
+    R (>= 4.3.0)
+Imports:
+    Biobase,
+    BiocParallel,
     doFuture,
+    emmeans,
     foreach,
     future,
-    nlme,
-    future.apply,
-    funtimes,
-    lme4,
-    lmerTest,
-    limma,
     ggplot2,
     ggsci,
-    ggpubr,
-    multtest,
+    graphics,
+    grDevices,
+    limma,
+    lme4,
+    Matrix,
+    methods,
     mixOmics,
-    cowplot,
-    dplyr,
-    R (>= 2.10)
+    parallel,
+    reformulas,
+    rlang,
+    scales,
+    stats,
+    utils
 Suggests: 
-    rmarkdown,
+    data.table,
+    edgeR,
+    genomation,
+    GenomicRanges,
+    IRanges,
+    iterators,
+    lmerTest,
     knitr,
-    renv
+    methylKit,
+    MuMIn,
+    performance,
+    rtracklayer,
+    Rsamtools,
+    S4Vectors,
+    rmarkdown,
+    rmcorr
 VignetteBuilder: knitr
+Roxygen: list(markdown = TRUE)
+Config/roxygen2/version: 8.0.0

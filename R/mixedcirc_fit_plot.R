@@ -30,7 +30,7 @@
 
 .get_prediction_formula_vars <- function(fit) {
   if (inherits(fit, "merMod")) {
-    ff <- lme4::nobars(stats::formula(fit))
+    ff <- reformulas::nobars(stats::formula(fit))
   } else {
     ff <- stats::formula(fit)
   }
@@ -86,10 +86,10 @@
   exp_design <- object@exp_design
   params <- if ("params" %in% methods::slotNames(object)) object@params else list()
 
-  time_var <- .get_call_arg_name(object, "time")
-  group_var_requested <- .get_call_arg_name(object, "group")
-  id_var <- .get_call_arg_name(object, "id")
-  replicate_var <- .get_call_arg_name(object, "replicate_id")
+  time_var <- if (!is.null(params$time)) params$time else .get_call_arg_name(object, "time")
+  group_var_requested <- if (!is.null(params$group)) params$group else .get_call_arg_name(object, "group")
+  id_var <- if (!is.null(params$id)) params$id else .get_call_arg_name(object, "id")
+  replicate_var <- if (!is.null(params$replicate_id)) params$replicate_id else .get_call_arg_name(object, "replicate_id")
 
   multiple_groups <- isTRUE(params$multiple_groups)
   rrbs <- isTRUE(params$RRBS)
@@ -299,7 +299,16 @@
     stop("For RRBS plotting, both scaler == 1 and scaler == 0 must exist.")
   }
 
-  key_cols <- setdiff(names(dat), c(value_col, scaler_col))
+  key_cols <- setdiff(
+    names(dat),
+    c(
+      value_col, scaler_col, "measure", ".fitted", ".residual",
+      ".weight", ".used_in_fit"
+    )
+  )
+  if (length(key_cols) == 0L) {
+    stop("Could not identify metadata columns for pairing RRBS rows.")
+  }
 
   dat1$.pair_id <- ave(seq_len(nrow(dat1)),
                        interaction(dat1[, key_cols, drop = FALSE], drop = TRUE),
@@ -366,7 +375,7 @@
 .get_used_exp_design <- function(object) {
   exp_design <- object@exp_design
   if (!".used_in_fit" %in% names(exp_design)) {
-    stop("object@exp_design must contain `.used_in_fit`. Please refit with the updated mixedcirc_detect().")
+    stop("object@exp_design does not contain `.used_in_fit`; refit with mixedcirc_detect()")
   }
   exp_design[exp_design$.used_in_fit %in% TRUE, , drop = FALSE]
 }
@@ -385,6 +394,13 @@
   factor_method  <- match.arg(factor_method)
 
   fit <- object@fit
+  if (is.null(fit)) {
+    stop(
+      "The fitted model was not retained. Refit with store_models = TRUE ",
+      "to interpolate or plot fitted curves.",
+      call. = FALSE
+    )
+  }
   mf <- .get_model_frame(fit)
   exp_design <- .get_used_exp_design(object)
   spec <- .get_plot_spec(object)
@@ -531,6 +547,11 @@
   raw_data <- exp_design
 
   if (spec$RRBS && "scaler" %in% names(raw_data)) {
+    internal_columns <- intersect(
+      c(".fitted", ".residual", ".weight", ".used_in_fit"),
+      names(raw_data)
+    )
+    raw_data[internal_columns] <- NULL
     raw_data <- .collapse_rrbs_difference(raw_data, value_col = "measure", scaler_col = "scaler")
   }
 
@@ -548,7 +569,8 @@
 #'
 #' @param x A `mixedcirc_fit` object.
 #' @param y Not used.
-#' @param period Rhythm period. Default 24.
+#' @param period Rhythm period. When omitted, the period stored in `x` by
+#'   `mixedcirc_detect()` is used; the fallback is `24` for older objects.
 #' @param min_time Minimum time for prediction. If NULL, taken from data.
 #' @param max_time Maximum time for prediction. If NULL, taken from data.
 #' @param n_points Number of time points used for the fitted curve.
@@ -566,12 +588,6 @@
 #'   "average_observed", "average_equal", or "reference".
 #'
 #' @return A ggplot object.
-#' @import stats
-#' @import methods
-#' @import lme4
-#' @import ggplot2
-#' @import ggpubr
-#' @import ggsci
 #' @export
 mixedcirc_fit_plot <- function(x,
                                y = NULL,
@@ -590,6 +606,53 @@ mixedcirc_fit_plot <- function(x,
                                show_expanded = c("none", "linetype", "facet", "label")[1],
                                numeric_method = c("mean", "median")[1],
                                factor_method = c("average_observed", "average_equal", "reference")[1]) {
+
+  if (!methods::is(x, "mixedcirc_fit")) {
+    stop("x must be a mixedcirc_fit object", call. = FALSE)
+  }
+
+  if (missing(period) && !is.null(x@params$period)) {
+    period <- x@params$period
+  }
+  if (!is.numeric(period) || length(period) != 1L || !is.finite(period) || period <= 0) {
+    stop("period must be a single positive finite number", call. = FALSE)
+  }
+  if (!is.numeric(n_points) || length(n_points) != 1L || !is.finite(n_points) ||
+      n_points < 2 || n_points %% 1 != 0) {
+    stop("n_points must be an integer of at least 2", call. = FALSE)
+  }
+  n_points <- as.integer(n_points)
+  if (!is.null(min_time) &&
+      (!is.numeric(min_time) || length(min_time) != 1L || !is.finite(min_time))) {
+    stop("min_time must be NULL or one finite number", call. = FALSE)
+  }
+  if (!is.null(max_time) &&
+      (!is.numeric(max_time) || length(max_time) != 1L || !is.finite(max_time))) {
+    stop("max_time must be NULL or one finite number", call. = FALSE)
+  }
+  if (!is.null(min_time) && !is.null(max_time) && max_time <= min_time) {
+    stop("max_time must be greater than min_time", call. = FALSE)
+  }
+  logical_args <- list(
+    plot_points = plot_points,
+    plot_smooth = plot_smooth,
+    plot_trend = plot_trend
+  )
+  bad_logical <- !vapply(
+    logical_args,
+    function(z) is.logical(z) && length(z) == 1L && !is.na(z),
+    logical(1)
+  )
+  if (any(bad_logical)) {
+    stop(names(logical_args)[which(bad_logical)[1L]], " must be TRUE or FALSE", call. = FALSE)
+  }
+  if (!is.list(fixed_values) ||
+      (length(fixed_values) > 0L && (is.null(names(fixed_values)) || any(names(fixed_values) == "")))) {
+    stop("fixed_values must be a named list", call. = FALSE)
+  }
+  if (!is.null(expand_vars) && !is.character(expand_vars)) {
+    stop("expand_vars must be NULL or a character vector", call. = FALSE)
+  }
 
   show_expanded  <- match.arg(show_expanded, c("none", "linetype", "facet", "label"))
   numeric_method <- match.arg(numeric_method, c("mean", "median"))
@@ -637,12 +700,15 @@ mixedcirc_fit_plot <- function(x,
   if (has_group) {
     plot_tmp <- ggplot2::ggplot(
       data = raw_data,
-      ggplot2::aes_string(x = time_var, y = "measure", group = group_var, color = group_var, shape = group_var)
+      ggplot2::aes(
+        x = .data[[time_var]], y = .data$measure,
+        group = .data[[group_var]], color = .data[[group_var]], shape = .data[[group_var]]
+      )
     )
   } else {
     plot_tmp <- ggplot2::ggplot(
       data = raw_data,
-      ggplot2::aes_string(x = time_var, y = "measure")
+      ggplot2::aes(x = .data[[time_var]], y = .data$measure)
     )
   }
 
@@ -651,15 +717,17 @@ mixedcirc_fit_plot <- function(x,
       plot_tmp <- plot_tmp +
         ggplot2::geom_point(
           data = raw_data,
-          ggplot2::aes_string(x = time_var, y = "measure", group = group_var, color = group_var, shape = group_var),
-          position = ggplot2::position_dodge(2),
+          ggplot2::aes(
+            x = .data[[time_var]], y = .data$measure,
+            group = .data[[group_var]], color = .data[[group_var]], shape = .data[[group_var]]
+          ),
           alpha = 0.2
         )
     } else {
       plot_tmp <- plot_tmp +
         ggplot2::geom_point(
           data = raw_data,
-          ggplot2::aes_string(x = time_var, y = "measure"),
+          ggplot2::aes(x = .data[[time_var]], y = .data$measure),
           alpha = 0.2
         )
     }
@@ -671,12 +739,12 @@ mixedcirc_fit_plot <- function(x,
         plot_tmp <- plot_tmp +
           ggplot2::geom_smooth(
             data = raw_data,
-            ggplot2::aes_string(
-              x = time_var,
-              y = "measure",
-              group = paste0("interaction(", group_var, ", .expanded_label)"),
-              color = group_var,
-              linetype = ".expanded_label"
+            ggplot2::aes(
+              x = .data[[time_var]],
+              y = .data$measure,
+              group = interaction(.data[[group_var]], .data$.expanded_label),
+              color = .data[[group_var]],
+              linetype = .data$.expanded_label
             ),
             se = FALSE,
             alpha = 0.2
@@ -685,7 +753,10 @@ mixedcirc_fit_plot <- function(x,
         plot_tmp <- plot_tmp +
           ggplot2::geom_smooth(
             data = raw_data,
-            ggplot2::aes_string(x = time_var, y = "measure", group = group_var, color = group_var),
+            ggplot2::aes(
+              x = .data[[time_var]], y = .data$measure,
+              group = .data[[group_var]], color = .data[[group_var]]
+            ),
             linetype = "dashed",
             se = FALSE,
             alpha = 0.2
@@ -696,7 +767,10 @@ mixedcirc_fit_plot <- function(x,
         plot_tmp <- plot_tmp +
           ggplot2::geom_smooth(
             data = raw_data,
-            ggplot2::aes_string(x = time_var, y = "measure", group = ".expanded_label", linetype = ".expanded_label"),
+            ggplot2::aes(
+              x = .data[[time_var]], y = .data$measure,
+              group = .data$.expanded_label, linetype = .data$.expanded_label
+            ),
             se = FALSE,
             alpha = 0.2
           )
@@ -704,7 +778,7 @@ mixedcirc_fit_plot <- function(x,
         plot_tmp <- plot_tmp +
           ggplot2::geom_smooth(
             data = raw_data,
-            ggplot2::aes_string(x = time_var, y = "measure"),
+            ggplot2::aes(x = .data[[time_var]], y = .data$measure),
             linetype = "dashed",
             se = FALSE,
             alpha = 0.2
@@ -719,18 +793,18 @@ mixedcirc_fit_plot <- function(x,
         plot_tmp <- plot_tmp +
           ggplot2::geom_line(
             data = pred_df,
-            ggplot2::aes_string(x = time_var, y = "Y.hat", color = group_var)
+            ggplot2::aes(x = .data[[time_var]], y = .data$Y.hat, color = .data[[group_var]])
           )
       } else if (show_expanded == "linetype") {
         plot_tmp <- plot_tmp +
           ggplot2::geom_line(
             data = pred_df,
-            ggplot2::aes_string(
-              x = time_var,
-              y = "Y.hat",
-              color = group_var,
-              linetype = ".expanded_label",
-              group = paste0("interaction(", group_var, ", .expanded_label)")
+            ggplot2::aes(
+              x = .data[[time_var]],
+              y = .data$Y.hat,
+              color = .data[[group_var]],
+              linetype = .data$.expanded_label,
+              group = interaction(.data[[group_var]], .data$.expanded_label)
             )
           )
       } else if (show_expanded == "label") {
@@ -738,13 +812,16 @@ mixedcirc_fit_plot <- function(x,
         plot_tmp <- plot_tmp +
           ggplot2::geom_line(
             data = pred_df,
-            ggplot2::aes_string(x = time_var, y = "Y.hat", color = ".curve_label", group = ".curve_label")
+            ggplot2::aes(
+              x = .data[[time_var]], y = .data$Y.hat,
+              color = .data$.curve_label, group = .data$.curve_label
+            )
           )
       } else if (show_expanded == "facet") {
         plot_tmp <- plot_tmp +
           ggplot2::geom_line(
             data = pred_df,
-            ggplot2::aes_string(x = time_var, y = "Y.hat", color = group_var)
+            ggplot2::aes(x = .data[[time_var]], y = .data$Y.hat, color = .data[[group_var]])
           )
       }
     } else {
@@ -752,25 +829,31 @@ mixedcirc_fit_plot <- function(x,
         plot_tmp <- plot_tmp +
           ggplot2::geom_line(
             data = pred_df,
-            ggplot2::aes_string(x = time_var, y = "Y.hat")
+            ggplot2::aes(x = .data[[time_var]], y = .data$Y.hat)
           )
       } else if (show_expanded == "linetype") {
         plot_tmp <- plot_tmp +
           ggplot2::geom_line(
             data = pred_df,
-            ggplot2::aes_string(x = time_var, y = "Y.hat", linetype = ".expanded_label", group = ".expanded_label")
+            ggplot2::aes(
+              x = .data[[time_var]], y = .data$Y.hat,
+              linetype = .data$.expanded_label, group = .data$.expanded_label
+            )
           )
       } else if (show_expanded == "label") {
         plot_tmp <- plot_tmp +
           ggplot2::geom_line(
             data = pred_df,
-            ggplot2::aes_string(x = time_var, y = "Y.hat", color = ".expanded_label", group = ".expanded_label")
+            ggplot2::aes(
+              x = .data[[time_var]], y = .data$Y.hat,
+              color = .data$.expanded_label, group = .data$.expanded_label
+            )
           )
       } else if (show_expanded == "facet") {
         plot_tmp <- plot_tmp +
           ggplot2::geom_line(
             data = pred_df,
-            ggplot2::aes_string(x = time_var, y = "Y.hat")
+            ggplot2::aes(x = .data[[time_var]], y = .data$Y.hat)
           )
       }
     }
@@ -781,12 +864,9 @@ mixedcirc_fit_plot <- function(x,
   }
 
   plot_tmp <- plot_tmp +
-    ggpubr::theme_classic2() +
+    ggplot2::theme_classic() +
     ggsci::scale_color_aaas() +
-    ggplot2::scale_x_continuous(
-      labels = sort(unique(raw_data[[time_var]])),
-      breaks = sort(unique(raw_data[[time_var]]))
-    ) +
+    ggplot2::scale_x_continuous(breaks = scales::breaks_pretty(n = 6)) +
     ggplot2::ylab(ylab) +
     ggplot2::scale_y_continuous() +
     ggplot2::theme(axis.text = ggplot2::element_text(color = "black")) +

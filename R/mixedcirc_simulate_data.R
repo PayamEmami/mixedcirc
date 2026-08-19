@@ -42,13 +42,16 @@
 #'   \describe{
 #'     \item{from}{Source feature index or feature name.}
 #'     \item{to}{Target feature index or feature name.}
-#'     \item{lag}{Integer lag, or a named integer vector with one lag per group.}
+#'     \item{lag}{Integer lag in observation steps, or a named integer vector
+#'     with one lag per group.}
 #'     \item{beta}{Numeric scaling factor applied to the copied lagged source.
 #'     Default behavior is multiplication of the shifted source by `beta`.}
 #'   }
 #'
-#'   Positive lag means that the target at time \(t\) is copied from the source
-#'   at time \(t - lag\). Negative lag means copying from the future source value.
+#'   Positive lag means that the target at one observation is copied from an
+#'   earlier source observation within the same subject; a negative lag uses a
+#'   later source observation. Lags refer to positions in the time-ordered data,
+#'   not elapsed time units.
 #'
 #'   In this implementation, the target feature is constructed from the observed
 #'   source feature:
@@ -57,6 +60,8 @@
 #'     \item for RRBS data, after methylated / unmethylated counts have been generated
 #'   }
 #'   Therefore, `lag = 0` and `beta = 1` produce an exact observed-data copy.
+#' @param period Positive rhythm period used for the time grid and simulated
+#'   harmonic signal. Default `24`.
 #'
 #' @return
 #' A list with:
@@ -64,7 +69,11 @@
 #'   \item{data_input}{Simulated feature matrix or data.frame.}
 #'   \item{meta_input}{Sample-level metadata.}
 #'   \item{obs_weights}{Observation weights for RRBS data, otherwise `NULL`.}
-#'   \item{truth}{A data.frame describing the true generating parameters.}
+#'   \item{truth}{A data frame describing the generating parameters. Phase
+#'   columns use the same signed model-shift convention as `mixedcirc_detect()`.
+#'   For copied features with a nonzero lag, the harmonic entries describe the
+#'   intended shifted signal; boundary observations are copied without a shift
+#'   because no source observation exists beyond the sampled series.}
 #' }
 #'
 #' @details
@@ -110,38 +119,95 @@ mixedcirc_simulate_data <- function(
     subject_random_intercept_sd = 0.6,
     residual_sd = 0.8,
     coverage_range = c(15, 80),
-    cross_lag_spec = NULL
+    cross_lag_spec = NULL,
+    period = 24
 ) {
-  set.seed(seed)
-
   groups <- as.character(groups)
   n_groups <- length(groups)
 
-  if (length(groups) < 1) stop("groups must contain at least one group")
-  if (!is.logical(include_covariates) || length(include_covariates) != 1) {
+  if (length(groups) < 1 || anyNA(groups) || any(groups == "") || anyDuplicated(groups)) {
+    stop("groups must contain unique, non-missing, non-empty group names")
+  }
+  if (!is.logical(include_covariates) || length(include_covariates) != 1 || is.na(include_covariates)) {
     stop("include_covariates must be TRUE or FALSE")
   }
-  if (!is.logical(rrbs) || length(rrbs) != 1) stop("rrbs must be TRUE or FALSE")
-  if (!is.numeric(n_subjects_per_group) || length(n_subjects_per_group) != 1 || n_subjects_per_group < 1) {
+  if (!is.logical(rrbs) || length(rrbs) != 1 || is.na(rrbs)) stop("rrbs must be TRUE or FALSE")
+  if (!is.numeric(n_subjects_per_group) || length(n_subjects_per_group) != 1 ||
+      !is.finite(n_subjects_per_group) || n_subjects_per_group < 1 ||
+      n_subjects_per_group %% 1 != 0) {
     stop("n_subjects_per_group must be a positive integer")
   }
-  if (!is.numeric(n_timepoints) || length(n_timepoints) != 1 || n_timepoints < 2) {
+  if (!is.numeric(n_timepoints) || length(n_timepoints) != 1 ||
+      !is.finite(n_timepoints) || n_timepoints < 2 || n_timepoints %% 1 != 0) {
     stop("n_timepoints must be an integer >= 2")
   }
-  if (!is.numeric(n_features) || length(n_features) != 1 || n_features < 1) {
+  if (!is.numeric(n_features) || length(n_features) != 1 ||
+      !is.finite(n_features) || n_features < 1 || n_features %% 1 != 0) {
     stop("n_features must be a positive integer")
   }
-  if (length(coverage_range) != 2 || any(!is.finite(coverage_range)) ||
+  if (!is.numeric(seed) || length(seed) != 1L || !is.finite(seed) || seed %% 1 != 0) {
+    stop("seed must be one finite integer")
+  }
+  if (seed < 0 || seed > .Machine$integer.max) {
+    stop("seed must be between 0 and .Machine$integer.max")
+  }
+  if (!is.numeric(period) || length(period) != 1L || !is.finite(period) || period <= 0) {
+    stop("period must be one positive finite number")
+  }
+  scalar_finite <- list(
+    age_mean = age_mean,
+    age_group_shift = age_group_shift
+  )
+  bad_scalar <- !vapply(
+    scalar_finite,
+    function(z) is.numeric(z) && length(z) == 1L && is.finite(z),
+    logical(1)
+  )
+  if (any(bad_scalar)) {
+    stop(names(scalar_finite)[which(bad_scalar)[1L]], " must be one finite number")
+  }
+  scalar_nonnegative <- list(
+    age_sd = age_sd,
+    age_beta_sd = age_beta_sd,
+    batch_effect_sd = batch_effect_sd,
+    subject_random_intercept_sd = subject_random_intercept_sd,
+    residual_sd = residual_sd
+  )
+  bad_sd <- !vapply(
+    scalar_nonnegative,
+    function(z) is.numeric(z) && length(z) == 1L && is.finite(z) && z >= 0,
+    logical(1)
+  )
+  if (any(bad_sd)) {
+    stop(names(scalar_nonnegative)[which(bad_sd)[1L]], " must be one non-negative finite number")
+  }
+  if (!is.numeric(coverage_range) || length(coverage_range) != 2 ||
+      any(!is.finite(coverage_range)) || any(coverage_range %% 1 != 0) ||
       coverage_range[1] <= 0 || coverage_range[2] < coverage_range[1]) {
     stop("coverage_range must be a numeric vector of length 2 like c(15, 80)")
   }
+  n_subjects_per_group <- as.integer(n_subjects_per_group)
+  n_timepoints <- as.integer(n_timepoints)
+  n_features <- as.integer(n_features)
+  coverage_range <- as.integer(coverage_range)
+  set.seed(as.integer(seed))
 
   if (include_covariates) {
+    if (!is.character(batch_levels) || length(batch_levels) < 1L ||
+        anyNA(batch_levels) || any(batch_levels == "") || anyDuplicated(batch_levels)) {
+      stop("batch_levels must contain unique, non-missing, non-empty names")
+    }
     if (is.null(age_beta)) age_beta <- if (rrbs) 0.01 else 0.03
+    if (!is.numeric(age_beta) || length(age_beta) != 1L || !is.finite(age_beta)) {
+      stop("age_beta must be NULL or one finite number")
+    }
     if (is.null(batch_effects)) {
       batch_effects <- if (rrbs) c(B1 = 0, B2 = 0.4) else c(B1 = 0, B2 = 1.2)
     }
-    if (is.null(names(batch_effects))) {
+    if (!is.numeric(batch_effects) || length(batch_effects) < 1L ||
+        any(!is.finite(batch_effects)) || is.null(names(batch_effects)) ||
+        anyNA(names(batch_effects)) || any(names(batch_effects) == "") ||
+        anyDuplicated(names(batch_effects))) {
       stop("batch_effects must be a named numeric vector, e.g. c(B1 = 0, B2 = 3)")
     }
     if (!all(batch_levels %in% names(batch_effects))) {
@@ -166,26 +232,16 @@ mixedcirc_simulate_data <- function(
   safe_name <- function(x) gsub("[^A-Za-z0-9_]", "_", x)
 
   calc_phase_mixedcirc <- function(inphase, outphase) {
-    rhy_params <- c(inphase, outphase)
-    sb <- sign(rhy_params[1])
-    sg <- sign(rhy_params[2])
-    theta <- atan(abs(rhy_params[2] / rhy_params[1]))
-
-    if ((sb == 1 || sb == 0) && sg == 1) {
-      phi <- -theta
-    } else if (sb == -1 && (sg == 1 || sg == 0)) {
-      phi <- theta - pi
-    } else if ((sb == -1 || sb == 0) && sg == -1) {
-      phi <- -theta - pi
-    } else if (sb == 1 && (sg == -1 || sg == 0)) {
-      phi <- theta - (2 * pi)
-    } else {
-      phi <- NA_real_
+    if (!is.finite(inphase) || !is.finite(outphase) ||
+        (inphase == 0 && outphase == 0)) {
+      return(NA_real_)
     }
+    phi <- atan2(-outphase, inphase)
+    if (phi >= 0) phi <- phi - 2 * pi
     phi
   }
 
-  calc_amp_phase <- function(beta_cos, beta_sin, period = 24) {
+  calc_amp_phase <- function(beta_cos, beta_sin) {
     amp <- sqrt(beta_cos^2 + beta_sin^2)
     phi <- calc_phase_mixedcirc(beta_cos, beta_sin)
     list(amplitude = amp, phase = phi)
@@ -210,6 +266,9 @@ mixedcirc_simulate_data <- function(
   resolve_feature_index <- function(z, feature_names) {
     if (length(z) != 1) stop("Feature selector must have length 1.")
     if (is.numeric(z)) {
+      if (!is.finite(z) || z %% 1 != 0) {
+        stop("Numeric feature index must be a finite integer.")
+      }
       z <- as.integer(z)
       if (is.na(z) || z < 1 || z > length(feature_names)) stop("Numeric feature index out of range.")
       return(z)
@@ -251,7 +310,7 @@ mixedcirc_simulate_data <- function(
 
       lag_i <- spec_i$lag
       if (length(lag_i) == 1) {
-        if (!is.numeric(lag_i) || is.na(lag_i) || lag_i %% 1 != 0) {
+        if (!is.numeric(lag_i) || !is.finite(lag_i) || lag_i %% 1 != 0) {
           stop("Each lag must be an integer or a named integer vector by group.")
         }
         lag_by_group <- setNames(rep(as.integer(lag_i), length(groups)), groups)
@@ -262,11 +321,13 @@ mixedcirc_simulate_data <- function(
         if (!all(groups %in% names(lag_i))) {
           stop("All groups must appear in names(lag) for grouped lag specification.")
         }
-        lag_by_group <- as.integer(lag_i[groups])
-        names(lag_by_group) <- groups
-        if (any(is.na(lag_by_group)) || any(lag_by_group %% 1 != 0)) {
-          stop("All group-specific lags must be integers.")
+        lag_selected <- lag_i[groups]
+        if (!is.numeric(lag_selected) || any(!is.finite(lag_selected)) ||
+            any(lag_selected %% 1 != 0)) {
+          stop("All group-specific lags must be finite integers.")
         }
+        lag_by_group <- as.integer(lag_selected)
+        names(lag_by_group) <- groups
       }
 
       out[[i]] <- list(
@@ -280,9 +341,10 @@ mixedcirc_simulate_data <- function(
     out
   }
 
-  shift_phase <- function(phi, lag_k, period = 24) {
-    phi_shift <- phi - (2 * pi * lag_k / period)
-    ((phi_shift + pi) %% (2 * pi)) - pi
+  shift_phase <- function(phi, lag_k) {
+    phase_shift <- 2 * pi * lag_k / n_timepoints
+    wrapped <- (phi - phase_shift) %% (2 * pi)
+    if (wrapped == 0) -2 * pi else wrapped - 2 * pi
   }
 
   # copy observed continuous feature matrix
@@ -387,7 +449,7 @@ mixedcirc_simulate_data <- function(
   for (g in seq_along(groups)) {
     ids <- paste0("id", subj_counter:(subj_counter + n_subjects_per_group - 1))
     subj_counter <- subj_counter + n_subjects_per_group
-    time_vec <- seq(0, 24 - 24 / n_timepoints, length.out = n_timepoints)
+    time_vec <- seq(0, period - period / n_timepoints, length.out = n_timepoints)
 
     meta_g <- expand.grid(
       id = ids,
@@ -416,8 +478,8 @@ mixedcirc_simulate_data <- function(
   meta_input <- do.call(rbind, meta_list)
   rownames(meta_input) <- NULL
 
-  inphase <- cos(2 * pi * meta_input$time / 24)
-  outphase <- sin(2 * pi * meta_input$time / 24)
+  inphase <- cos(2 * pi * meta_input$time / period)
+  outphase <- sin(2 * pi * meta_input$time / period)
   n_samples <- nrow(meta_input)
 
   subject_ids <- unique(meta_input$id)
@@ -505,7 +567,7 @@ mixedcirc_simulate_data <- function(
         mesor_g <- base_mesor + group_mesor_shift[g]
         beta_cos_g <- group_beta_cos[g]
         beta_sin_g <- group_beta_sin[g]
-        amp_phase <- calc_amp_phase(beta_cos_g, beta_sin_g, period = 24)
+        amp_phase <- calc_amp_phase(beta_cos_g, beta_sin_g)
 
         truth_row[[paste0("mesor_", gp)]] <- mesor_g
         truth_row[[paste0("group_shift_", gp)]] <- group_mesor_shift[g]
@@ -544,14 +606,15 @@ mixedcirc_simulate_data <- function(
 
         for (g in groups) {
           gp <- safe_name(g)
-          beta_cos_new <- beta_i * source_params$group_beta_cos[g]
-          beta_sin_new <- beta_i * source_params$group_beta_sin[g]
+          unshifted_cos <- beta_i * source_params$group_beta_cos[g]
+          unshifted_sin <- beta_i * source_params$group_beta_sin[g]
           phi_new <- shift_phase(
-            calc_phase_mixedcirc(beta_cos_new, beta_sin_new),
-            lag_i[g],
-            period = 24
+            calc_phase_mixedcirc(unshifted_cos, unshifted_sin),
+            lag_i[g]
           )
           amp_new <- abs(beta_i) * sqrt(source_params$group_beta_cos[g]^2 + source_params$group_beta_sin[g]^2)
+          beta_cos_new <- amp_new * cos(phi_new)
+          beta_sin_new <- -amp_new * sin(phi_new)
 
           truth_list[[to_j]][[paste0("copied_lag_", gp)]] <- lag_i[g]
           truth_list[[to_j]][[paste0("mesor_", gp)]] <- beta_i * (source_params$base_mesor + source_params$group_mesor_shift[g])
@@ -657,7 +720,7 @@ mixedcirc_simulate_data <- function(
         intercept_g <- base_logit + group_shift[g]
         beta_cos_g <- group_beta_cos[g]
         beta_sin_g <- group_beta_sin[g]
-        amp_phase <- calc_amp_phase(beta_cos_g, beta_sin_g, period = 24)
+        amp_phase <- calc_amp_phase(beta_cos_g, beta_sin_g)
 
         truth_row[[paste0("logit_intercept_", gp)]] <- intercept_g
         truth_row[[paste0("group_shift_", gp)]] <- group_shift[g]
@@ -721,14 +784,15 @@ mixedcirc_simulate_data <- function(
 
         for (g in groups) {
           gp <- safe_name(g)
-          beta_cos_new <- beta_i * source_params$group_beta_cos[g]
-          beta_sin_new <- beta_i * source_params$group_beta_sin[g]
+          unshifted_cos <- beta_i * source_params$group_beta_cos[g]
+          unshifted_sin <- beta_i * source_params$group_beta_sin[g]
           phi_new <- shift_phase(
-            calc_phase_mixedcirc(beta_cos_new, beta_sin_new),
-            lag_i[g],
-            period = 24
+            calc_phase_mixedcirc(unshifted_cos, unshifted_sin),
+            lag_i[g]
           )
           amp_new <- abs(beta_i) * sqrt(source_params$group_beta_cos[g]^2 + source_params$group_beta_sin[g]^2)
+          beta_cos_new <- amp_new * cos(phi_new)
+          beta_sin_new <- -amp_new * sin(phi_new)
 
           truth_list[[to_j]][[paste0("copied_lag_", gp)]] <- lag_i[g]
           truth_list[[to_j]][[paste0("logit_intercept_", gp)]] <- beta_i * (source_params$base_logit + source_params$group_shift[g])

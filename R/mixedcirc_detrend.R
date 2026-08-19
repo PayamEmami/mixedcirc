@@ -1,9 +1,10 @@
 #' Remove linear trend from fitted circadian values
 #'
 #' This function removes a linear trend from the fitted values obtained from
-#' a `mixedcirc_fit` or `mixedcirc_fit_list` object. The detrending is performed
-#' by regressing the fitted values on the original time variable and returning
-#' the residuals from that regression.
+#' a `mixedcirc_fit` or `mixedcirc_fit_list` object. It regresses stored fitted
+#' values on the original time variable and returns the residuals. This is a
+#' descriptive post-processing helper; it does not refit the circadian model or
+#' alter its inferential results.
 #'
 #' @param fit An object of class `mixedcirc_fit` or `mixedcirc_fit_list`.
 #' @param per_group Logical. If `TRUE`, detrending is performed separately within
@@ -22,7 +23,7 @@
 #'
 #' @details
 #' The function first tries to use the `.fitted` column stored in `object@exp_design`
-#' by the updated `mixedcirc_detect()` function. If that column is unavailable or
+#' by `mixedcirc_detect()`. If that column is unavailable or
 #' unusable, fitted values are extracted directly from the fitted model and aligned
 #' back to `exp_design`.
 #'
@@ -46,9 +47,6 @@
 #' some non-missing values. If `.weight` is entirely `NA` (for example because
 #' the original model was unweighted), weights are ignored automatically.
 #'
-#' @import stats
-#' @import methods
-#' @import lme4
 #' @export
 mixedcirc_detrend <- function(fit = NULL,
                               per_group = FALSE,
@@ -56,10 +54,27 @@ mixedcirc_detrend <- function(fit = NULL,
                               verbose = FALSE,
                               ...) {
 
-  if (verbose) cat("Checking inputs ...\n")
+  if (isTRUE(verbose)) cat("Checking inputs ...\n")
+
+  logical_args <- list(
+    per_group = per_group,
+    use_mixed_for_detrend = use_mixed_for_detrend,
+    verbose = verbose
+  )
+  bad_logical <- !vapply(
+    logical_args,
+    function(z) is.logical(z) && length(z) == 1L && !is.na(z),
+    logical(1)
+  )
+  if (any(bad_logical)) {
+    stop(names(logical_args)[which(bad_logical)[1L]], " must be TRUE or FALSE")
+  }
 
   if (!(is(fit, "mixedcirc_fit") || is(fit, "mixedcirc_fit_list"))) {
     stop("input must be `mixedcirc_fit` or `mixedcirc_fit_list`")
+  }
+  if (is(fit, "mixedcirc_fit_list") && length(fit) == 0L) {
+    stop("fit must contain at least one fitted feature")
   }
 
   # ---------------------------------------------------------
@@ -85,9 +100,9 @@ mixedcirc_detrend <- function(fit = NULL,
     exp_design <- object@exp_design
     params <- if ("params" %in% methods::slotNames(object)) object@params else list()
 
-    time_var <- .get_call_arg_name(object, "time")
-    group_var_requested <- .get_call_arg_name(object, "group")
-    id_var <- .get_call_arg_name(object, "id")
+    time_var <- if (!is.null(params$time)) params$time else .get_call_arg_name(object, "time")
+    group_var_requested <- if (!is.null(params$group)) params$group else .get_call_arg_name(object, "group")
+    id_var <- if (!is.null(params$id)) params$id else .get_call_arg_name(object, "id")
 
     multiple_groups <- isTRUE(params$multiple_groups)
     rrbs <- isTRUE(params$RRBS)

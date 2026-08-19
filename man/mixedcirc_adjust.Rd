@@ -2,7 +2,7 @@
 % Please edit documentation in R/mixedcirc_adjust.R
 \name{mixedcirc_adjust}
 \alias{mixedcirc_adjust}
-\title{Perform p-value adjustment on mixedcirc_fit_list}
+\title{Adjust p-values across fitted features}
 \usage{
 mixedcirc_adjust(
   input,
@@ -13,34 +13,45 @@ mixedcirc_adjust(
 )
 }
 \arguments{
-\item{input}{An object of mixedcirc_fit_list. It has to contain more than one variable.}
+\item{input}{A \code{mixedcirc_fit_list} containing at least two fitted features.}
 
-\item{method}{A vector of character strings containing the names of the multiple testing procedures for which adjusted p-values are to be computed. This vector should include any of the following: "holm","hochberg","hommel","bonferroni", "BH", "BY","fdr" "none".}
+\item{method}{A multiple-testing method accepted by \code{\link[stats:p.adjust]{stats::p.adjust()}}.}
 
-\item{pattern}{Columns of results with this pattern will be selected for doing adjustment. Default: p_value.}
+\item{pattern}{A regular expression used to select result columns. The
+default, \code{"p.value"}, selects the p-value columns produced by
+\code{\link[=mixedcirc_detect]{mixedcirc_detect()}}.}
 
-\item{verbose}{Show information about different stages of the processes. Default FALSE.}
+\item{verbose}{Logical; print progress messages.}
 
-\item{...}{additional arguments passed to mt.rawp2adjp from multtest package.}
+\item{...}{Reserved for future use.}
 }
 \value{
-A class of mixedcirc_fit_list in which the adjusted p-values have been added in the results
+A \code{mixedcirc_fit_list} with adjusted p-value columns appended to each
+feature's result table.
 }
 \description{
-This functions performs p-value adjustment on mixedcirc_fit_list
-}
-\details{
-The p-values from the matching columns will be adjusted one column at the time using the selected method.
+Applies a multiple-testing correction to matching result columns in a
+\code{mixedcirc_fit_list}. Each selected column is adjusted separately across
+features, and the adjusted values are appended to the corresponding feature
+results.
 }
 \examples{
-data("circa_data")
-
-results <- mixedcirc_detect(data_input = circa_data$data_matrix,
-time = circa_data$time,
-group = circa_data$group,
-id = circa_data$id,
-period = 24,
-verbose = TRUE)
+simulated <- mixedcirc_simulate_data(
+  n_subjects_per_group = 3,
+  n_timepoints = 6,
+  n_features = 3,
+  groups = c("A", "B"),
+  seed = 10
+)
+results <- mixedcirc_detect(
+  data_input = simulated$data_input,
+  meta_input = simulated$meta_input,
+  time = "time",
+  group = "group",
+  id = "id",
+  lm_method = "lm",
+  random_effect_type = "none"
+)
 results <- mixedcirc_adjust(results, method = "bonferroni")
 
 }

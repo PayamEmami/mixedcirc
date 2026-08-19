@@ -2,42 +2,61 @@
 % Please edit documentation in R/mixedcirc_detectpeaks.R
 \name{mixedcirc_detectpeaks}
 \alias{mixedcirc_detectpeaks}
-\title{Finds peak of a rhythm}
+\title{Convert a fitted phase to peak time}
 \usage{
 mixedcirc_detectpeaks(
   phi,
   period = 24,
   min_time = 0,
-  correct_period = T,
-  correct_min = F
+  correct_period = TRUE,
+  correct_min = FALSE
 )
 }
 \arguments{
-\item{phi}{phase of a peak}
+\item{phi}{Numeric vector of signed phases returned by \code{mixedcirc_detect()}.}
 
-\item{period}{period of circadian rhythm. Default: 24}
+\item{period}{Positive rhythm period. Default is \code{24}.}
 
-\item{min_time}{minimum time considered}
+\item{min_time}{Minimum time considered when \code{correct_min = TRUE}.}
 
-\item{correct_period}{if TRUE, period will be forced to be between the min and max time}
+\item{correct_period}{Logical; if \code{TRUE}, peak times are wrapped into
+\verb{[0, period)}.}
 
-\item{correct_min}{minimum time will be adjusted}
+\item{correct_min}{Logical; if \code{TRUE}, wrapped peak times below \code{min_time}
+are advanced by complete periods until they are at least \code{min_time}.}
 }
 \value{
-numeric - the peak time
+A numeric vector of peak times.
 }
 \description{
-This function finds peak of a rhythm
+Converts the signed phase returned by \code{mixedcirc_detect()} to the time at
+which the fitted rhythm reaches its maximum.
+}
+\details{
+\code{mixedcirc_detect()} reports the signed phase \eqn{\phi} from
+\deqn{M + A cos(2\pi t / period + \phi).}
+The corresponding peak time is
+\deqn{(-\phi mod 2\pi) period / (2\pi).}
 }
 \examples{
 data("circa_data")
 
-results <- mixedcirc_detect(data_input = circa_data$data_matrix,
-time = circa_data$time,
-group = circa_data$group,
-id = circa_data$id,
-period = 24,
-verbose = TRUE)
-mixedcirc_detectpeaks(results[1][,5], min_time = 0)
+results <- mixedcirc_detect(
+  data_input = circa_data$data_matrix,
+  meta_input = data.frame(
+    time = circa_data$time,
+    group = circa_data$group,
+    id = circa_data$id
+  ),
+  time = "time",
+  group = "group",
+  id = "id",
+  period = 24,
+  lm_method = "lm",
+  verbose = TRUE
+)
+phase_columns <- grep("^phase_", names(results[[1]]@results), value = TRUE)
+phases <- unlist(results[[1]]@results[phase_columns], use.names = FALSE)
+mixedcirc_detectpeaks(phases, min_time = 0)
 
 }

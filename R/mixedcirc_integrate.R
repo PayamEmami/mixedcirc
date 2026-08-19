@@ -1,11 +1,12 @@
-#' Integrate circadian datasets using SGCCA
+#' Experimental integration of circadian datasets using SGCCA
 #'
 #' Performs multi-block data integration using sparse generalized canonical
 #' correlation analysis (SGCCA). The biological datasets are
 #' integrated together with one or two design blocks representing circadian
 #' rhythm and, optionally, group structure.
 #'
-#' @param data_input A named list of numeric matrices or data.frames. Each element
+#' @param data_input A named list containing at least two numeric matrices or
+#'   data frames. Each element
 #'   is one dataset, with rows corresponding to samples and columns to variables.
 #'   All datasets must have the same number of rows.
 #' @param meta_input A data.frame or matrix containing sample-level metadata.
@@ -20,8 +21,9 @@
 #' @param ncomp Number of SGCCA components to estimate. Must be a positive integer.
 #'   Default `2`.
 #' @param variables Optional named list controlling the number of variables kept
-#'   per component in each dataset. Each element should be an integer vector of
-#'   length `ncomp`. Names must match `data_input`.
+#'   per component in each dataset. Each supplied element must be an integer
+#'   vector of length `ncomp`; its name must identify a block in `data_input`.
+#'   Blocks omitted from this list keep all variables.
 #' @param decompose Logical. If `TRUE`, within-subject variation is extracted for
 #'   each dataset before integration.
 #'   Requires `id`. Default `FALSE`.
@@ -32,8 +34,9 @@
 #' @param merge Logical. If `TRUE`, group and rhythm design variables are merged
 #'   into a single design block. Default `FALSE`.
 #' @param no_correlation Logical. If `TRUE` and group information is provided in
-#'   separate blocks, the covariance between the group-design block and the
-#'   rhythm-design block is fixed to zero. Default `FALSE`.
+#'   separate blocks, the corresponding entries of the SGCCA design matrix are
+#'   set to zero, so the group and rhythm blocks are not directly coupled.
+#'   Default `FALSE`.
 #' @param no_interaction Logical. If `TRUE`, no group-specific rhythm interaction
 #'   is encoded. In grouped analysis, rhythm is then represented by common
 #'   `inphase` and `outphase` terms and group is represented separately.
@@ -62,8 +65,13 @@
 #' rhythm block is shared across groups and the group structure is represented
 #' separately.
 #'
-#' The resulting partial or average scores can be used as integrated features in
-#' downstream analyses such as `mixedcirc_detect()`.
+#' @section Experimental status:
+#' This function is experimental. Because the SGCCA model is supervised by the
+#' time and optional group variables, its scores are selected to follow those
+#' variables. Testing the learned scores against the same time or group variables
+#' in the same samples does not provide independent confirmatory evidence. Use the
+#' scores for exploratory analysis, or validate them on independent samples or
+#' with a resampling procedure that repeats the complete integration workflow.
 #'
 #' @examples
 #' library(mixedcirc)
@@ -88,9 +96,6 @@
 #'
 #' score_matrix <- mixedcirc_getscore(results, type = "average")
 #'
-#' @import stats
-#' @import methods
-#' @import mixOmics
 #' @export
 mixedcirc_integrate <- function(data_input = NULL,
                                 meta_input = NULL,
@@ -109,25 +114,66 @@ mixedcirc_integrate <- function(data_input = NULL,
                                 max.iter = 100000,
                                 verbose = FALSE) {
 
-  if (verbose) cat("Checking inputs ...\n")
+  if (isTRUE(verbose)) cat("Checking inputs ...\n")
 
-  if (is.null(data_input) || !is.list(data_input) || length(data_input) == 0) {
-    stop("data_input must be a non-empty named list of matrices or data.frames")
+  logical_args <- list(
+    decompose = decompose,
+    center = center,
+    scale = scale,
+    merge = merge,
+    no_correlation = no_correlation,
+    no_interaction = no_interaction,
+    verbose = verbose
+  )
+  bad_logical <- !vapply(
+    logical_args,
+    function(z) is.logical(z) && length(z) == 1L && !is.na(z),
+    logical(1)
+  )
+  if (any(bad_logical)) {
+    stop(names(logical_args)[which(bad_logical)[1L]], " must be TRUE or FALSE")
   }
 
-  if (is.null(names(data_input)) || any(names(data_input) == "")) {
-    stop("data_input must be a named list")
+  if (is.null(data_input) || !is.list(data_input) || length(data_input) < 2L) {
+    stop("data_input must be a named list containing at least two biological data blocks")
+  }
+
+  if (is.null(names(data_input)) || anyNA(names(data_input)) ||
+      any(names(data_input) == "") || anyDuplicated(names(data_input))) {
+    stop("data_input must have unique, non-empty block names")
   }
 
   ok_blocks <- vapply(data_input, function(x) is.matrix(x) || is.data.frame(x), logical(1))
   if (any(!ok_blocks)) {
     stop(
-      "All elements of data_input must be matrices or data.frames. Problematic blocks: ",
+      "All elements of data_input must be matrices or data frames. Problematic blocks: ",
       paste(names(data_input)[!ok_blocks], collapse = ", ")
     )
   }
 
-  data_input <- lapply(data_input, as.matrix)
+  non_numeric_blocks <- !vapply(data_input, function(x) {
+    if (is.data.frame(x)) all(vapply(x, is.numeric, logical(1))) else is.numeric(x)
+  }, logical(1))
+  if (any(non_numeric_blocks)) {
+    stop(
+      "All data blocks must contain only numeric columns. Problematic blocks: ",
+      paste(names(data_input)[non_numeric_blocks], collapse = ", ")
+    )
+  }
+
+  data_input <- Map(function(x, nm) {
+    x <- as.matrix(x)
+    if (ncol(x) == 0L) stop("Data block '", nm, "' has no variables")
+    if (any(!is.finite(x))) {
+      stop("Data block '", nm, "' contains missing or non-finite values")
+    }
+    if (is.null(colnames(x))) colnames(x) <- paste0("feature", seq_len(ncol(x)))
+    if (anyDuplicated(colnames(x))) {
+      warning("Duplicated variable names in data block '", nm, "' were made unique")
+      colnames(x) <- make.unique(colnames(x))
+    }
+    x
+  }, data_input, names(data_input))
 
   nrows_unique <- unique(vapply(data_input, nrow, integer(1)))
   if (length(nrows_unique) != 1) {
@@ -144,34 +190,62 @@ mixedcirc_integrate <- function(data_input = NULL,
     stop("meta_input must have the same number of rows as each dataset in data_input")
   }
 
-  if (is.null(time) || !time %in% colnames(meta_input)) {
+  if (!is.character(time) || length(time) != 1L || is.na(time) ||
+      time == "" || !time %in% colnames(meta_input)) {
     stop("time must be the name of a column in meta_input")
   }
-
-  if (!is.numeric(period) || length(period) != 1 || is.na(period) || is.infinite(period)) {
-    stop("period must be a single finite numeric value")
+  if (!is.numeric(meta_input[[time]]) || any(!is.finite(meta_input[[time]]))) {
+    stop("the time column must contain only finite numeric values")
   }
 
-  if (!is.numeric(ncomp) || length(ncomp) != 1 || is.na(ncomp) || ncomp <= 0 || ncomp %% 1 != 0) {
+  if (!is.numeric(period) || length(period) != 1L || !is.finite(period) || period <= 0) {
+    stop("period must be a single positive finite numeric value")
+  }
+
+  if (!is.numeric(ncomp) || length(ncomp) != 1L || !is.finite(ncomp) ||
+      ncomp <= 0 || ncomp %% 1 != 0) {
     stop("ncomp must be a positive integer")
   }
+  ncomp <- as.integer(ncomp)
+  if (ncomp > min(vapply(data_input, ncol, integer(1)))) {
+    stop("ncomp cannot exceed the number of variables in the smallest biological block")
+  }
+  if (!is.numeric(max.iter) || length(max.iter) != 1L || !is.finite(max.iter) ||
+      max.iter < 1 || max.iter %% 1 != 0) {
+    stop("max.iter must be a positive integer")
+  }
+  max.iter <- as.integer(max.iter)
 
   multiple_groups <- FALSE
   if (!is.null(group)) {
-    if (!group %in% colnames(meta_input)) {
+    if (!is.character(group) || length(group) != 1L || is.na(group) ||
+        group == "" || !group %in% colnames(meta_input)) {
       stop("group must be the name of a column in meta_input")
     }
-    multiple_groups <- TRUE
+    if (anyNA(meta_input[[group]])) {
+      stop("the group column must not contain missing values")
+    }
+    multiple_groups <- length(unique(meta_input[[group]])) > 1L
+    if (!multiple_groups) {
+      warning("The supplied group column has fewer than two groups; fitting an ungrouped integration model")
+      group <- NULL
+    }
   }
 
   if (decompose) {
-    if (is.null(id) || !id %in% colnames(meta_input)) {
+    if (!is.character(id) || length(id) != 1L || is.na(id) ||
+        id == "" || !id %in% colnames(meta_input)) {
       stop("If decompose = TRUE, id must be provided as a column name in meta_input")
+    }
+    if (anyNA(meta_input[[id]]) || length(unique(meta_input[[id]])) < 2L) {
+      stop("decompose = TRUE requires at least two non-missing subject identifiers")
     }
   }
 
   if (!is.null(variables)) {
-    if (!is.list(variables) || is.null(names(variables))) {
+    if (!is.list(variables) || is.null(names(variables)) ||
+        anyNA(names(variables)) || any(names(variables) == "") ||
+        anyDuplicated(names(variables))) {
       stop("variables must be a named list")
     }
 
@@ -179,17 +253,20 @@ mixedcirc_integrate <- function(data_input = NULL,
       stop("variables must have names matching data_input")
     }
 
-    bad_vars <- !vapply(variables, is.numeric, logical(1))
+    bad_vars <- !vapply(variables, function(z) {
+      is.numeric(z) && length(z) == ncomp && all(is.finite(z)) &&
+        all(z >= 1) && all(z %% 1 == 0)
+    }, logical(1))
     if (any(bad_vars)) {
-      stop("Each element of variables must be a numeric vector")
+      stop("Each element of variables must contain ncomp positive integers")
     }
-
-    short_vars <- vapply(variables, length, integer(1)) < ncomp
-    if (any(short_vars)) {
-      warning(
-        "Each element of variables should have length ncomp = ", ncomp,
-        ". Using all available variables for: ",
-        paste(names(variables)[short_vars], collapse = ", ")
+    too_large <- vapply(names(variables), function(nm) {
+      any(variables[[nm]] > ncol(data_input[[nm]]))
+    }, logical(1))
+    if (any(too_large)) {
+      stop(
+        "variables cannot request more variables than a block contains. Problematic blocks: ",
+        paste(names(variables)[too_large], collapse = ", ")
       )
     }
   }
@@ -201,7 +278,7 @@ mixedcirc_integrate <- function(data_input = NULL,
   exp_design$outphase <- sin(2 * pi * exp_design[[time]] / period)
 
   if (multiple_groups) {
-    exp_design[[group]] <- factor(exp_design[[group]])
+    exp_design[[group]] <- droplevels(factor(exp_design[[group]]))
   }
 
   if (decompose) {
@@ -212,7 +289,22 @@ mixedcirc_integrate <- function(data_input = NULL,
   }
 
   if (verbose) cat("Centering / scaling datasets ...\n")
-  data_input <- lapply(data_input, function(x) scale(x, center = center, scale = scale))
+  zero_variance <- vapply(data_input, function(x) {
+    any(apply(x, 2L, stats::sd) <= sqrt(.Machine$double.eps))
+  }, logical(1))
+  if (any(zero_variance)) {
+    stop(
+      "Biological blocks contain constant variables after preprocessing: ",
+      paste(names(data_input)[zero_variance], collapse = ", ")
+    )
+  }
+  data_input <- lapply(
+    data_input,
+    function(x) {
+      scale_values <- if (scale) apply(x, 2L, stats::sd) else FALSE
+      base::scale(x, center = center, scale = scale_values)
+    }
+  )
 
   # ---------------------------------------------------------
   # Build design blocks
@@ -301,7 +393,7 @@ mixedcirc_integrate <- function(data_input = NULL,
     names(keepX) <- names(blocks)
 
     for (nm in names(data_input)) {
-      if (nm %in% names(variables) && length(variables[[nm]]) >= ncomp) {
+      if (nm %in% names(variables)) {
         keepX[[nm]] <- as.integer(variables[[nm]][seq_len(ncomp)])
       } else {
         keepX[[nm]] <- rep(ncol(blocks[[nm]]), ncomp)
@@ -318,14 +410,23 @@ mixedcirc_integrate <- function(data_input = NULL,
   # ---------------------------------------------------------
   if (verbose) cat("Running SGCCA ...\n")
 
-  sgcca_model <- mixOmics::wrapper.sgcca(
-    X = blocks,
-    ncomp = ncomp,
-    scale = FALSE,
-    design = design_matrix,
-    mode = "canonical",
-    keepX = keepX,
-    max.iter = max.iter
+  sgcca_model <- tryCatch(
+    mixOmics::wrapper.sgcca(
+      X = blocks,
+      ncomp = ncomp,
+      scale = FALSE,
+      design = design_matrix,
+      mode = "canonical",
+      keepX = keepX,
+      max.iter = max.iter
+    ),
+    error = function(e) {
+      stop(
+        "SGCCA fitting failed: ", conditionMessage(e),
+        ". Check block variation, component count, and design settings.",
+        call. = FALSE
+      )
+    }
   )
 
   if (verbose) cat("Extracting scores and loadings ...\n")
@@ -370,8 +471,10 @@ mixedcirc_integrate <- function(data_input = NULL,
 #' @param type One of `"partial"`, `"average"`, `"loadings"`, or `"model"`.
 #' @param dataset Optional dataset name to extract when `merge = FALSE` and
 #'   `type` is `"partial"` or `"loadings"`.
-#' @param merge Logical. If `TRUE`, all datasets are combined column-wise into one
-#'   matrix when `type` is `"partial"` or `"loadings"`. Default `FALSE`.
+#' @param merge Logical. If `TRUE`, partial scores are combined column-wise
+#'   (samples by block-components), while loadings are combined row-wise
+#'   (block-features by components). Block names are added to the merged
+#'   column or row names, respectively. Default `FALSE`.
 #' @param verbose Logical. If `TRUE`, progress messages are printed. Default `FALSE`.
 #'
 #' @return
@@ -401,7 +504,6 @@ mixedcirc_integrate <- function(data_input = NULL,
 #'
 #' score_matrix <- mixedcirc_getscore(results, type = "average")
 #'
-#' @import methods
 #' @export
 mixedcirc_getscore <- function(input = NULL,
                                type = NULL,
@@ -409,6 +511,12 @@ mixedcirc_getscore <- function(input = NULL,
                                merge = FALSE,
                                verbose = FALSE) {
 
+  if (!is.logical(merge) || length(merge) != 1L || is.na(merge)) {
+    stop("merge must be TRUE or FALSE")
+  }
+  if (!is.logical(verbose) || length(verbose) != 1L || is.na(verbose)) {
+    stop("verbose must be TRUE or FALSE")
+  }
   if (verbose) cat("Checking parameters ...\n")
 
   if (!is(input, "mixedcirc_integration")) {
@@ -417,6 +525,9 @@ mixedcirc_getscore <- function(input = NULL,
 
   if (is.null(type)) {
     stop("type must be provided")
+  }
+  if (!is.character(type) || length(type) != 1L || is.na(type)) {
+    stop("type must be one of: partial, average, loadings, model")
   }
 
   type <- match.arg(type, c("partial", "average", "loadings", "model"))
@@ -440,17 +551,44 @@ mixedcirc_getscore <- function(input = NULL,
   }
 
   if (merge) {
+    if (type == "partial") {
+      row_counts <- vapply(slot_data, NROW, integer(1L))
+      if (length(unique(row_counts)) != 1L) {
+        stop("Partial-score matrices must have the same number of samples to merge")
+      }
+      merged <- Map(function(x, nm) {
+        x <- as.matrix(x)
+        component_names <- colnames(x)
+        if (is.null(component_names)) {
+          component_names <- paste0("comp", seq_len(ncol(x)))
+        }
+        colnames(x) <- paste0(nm, "_", component_names)
+        x
+      }, slot_data, names(slot_data))
+      return(as.matrix(do.call(cbind, merged)))
+    }
+
+    component_counts <- vapply(slot_data, NCOL, integer(1L))
+    if (length(unique(component_counts)) != 1L) {
+      stop("Loading matrices must have the same number of components to merge")
+    }
     merged <- Map(function(x, nm) {
       x <- as.matrix(x)
-      colnames(x) <- paste0(nm, "_", colnames(x))
+      feature_names <- rownames(x)
+      if (is.null(feature_names)) {
+        feature_names <- paste0("feature", seq_len(nrow(x)))
+      }
+      rownames(x) <- paste0(nm, "_", feature_names)
       x
     }, slot_data, names(slot_data))
-
-    return(as.matrix(do.call(cbind, merged)))
+    return(as.matrix(do.call(rbind, merged)))
   }
 
   if (is.null(dataset)) {
     stop("dataset must be provided when merge = FALSE and type is 'partial' or 'loadings'")
+  }
+  if (!is.character(dataset) || length(dataset) != 1L || is.na(dataset) || dataset == "") {
+    stop("dataset must be one block name")
   }
 
   if (!dataset %in% names(slot_data)) {

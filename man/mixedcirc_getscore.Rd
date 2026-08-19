@@ -13,25 +13,27 @@ mixedcirc_getscore(
 )
 }
 \arguments{
-\item{input}{A `mixedcirc_integration` object.}
+\item{input}{A \code{mixedcirc_integration} object.}
 
-\item{type}{One of `"partial"`, `"average"`, `"loadings"`, or `"model"`.}
+\item{type}{One of \code{"partial"}, \code{"average"}, \code{"loadings"}, or \code{"model"}.}
 
-\item{dataset}{Optional dataset name to extract when `merge = FALSE` and
-`type` is `"partial"` or `"loadings"`.}
+\item{dataset}{Optional dataset name to extract when \code{merge = FALSE} and
+\code{type} is \code{"partial"} or \code{"loadings"}.}
 
-\item{merge}{Logical. If `TRUE`, all datasets are combined column-wise into one
-matrix when `type` is `"partial"` or `"loadings"`. Default `FALSE`.}
+\item{merge}{Logical. If \code{TRUE}, partial scores are combined column-wise
+(samples by block-components), while loadings are combined row-wise
+(block-features by components). Block names are added to the merged
+column or row names, respectively. Default \code{FALSE}.}
 
-\item{verbose}{Logical. If `TRUE`, progress messages are printed. Default `FALSE`.}
+\item{verbose}{Logical. If \code{TRUE}, progress messages are printed. Default \code{FALSE}.}
 }
 \value{
-A matrix for `"partial"`, `"average"`, or `"loadings"`, or the full fitted
-model object for `"model"`.
+A matrix for \code{"partial"}, \code{"average"}, or \code{"loadings"}, or the full fitted
+model object for \code{"model"}.
 }
 \description{
 Retrieves partial scores, average scores, loadings, or the full fitted SGCCA
-model from an object of class `mixedcirc_integration`.
+model from an object of class \code{mixedcirc_integration}.
 }
 \examples{
 library(mixedcirc)

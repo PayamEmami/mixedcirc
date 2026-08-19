@@ -24,62 +24,62 @@ mixedcirc_remove_trend(
 )
 }
 \arguments{
-\item{data_input}{A numeric matrix, data.frame, or `DGEList` containing the input data.
-Rows correspond to observations and columns correspond to variables when `data_input`
-is a matrix or data.frame. If a `DGEList` is provided, rows correspond to variables and
+\item{data_input}{A numeric matrix, data.frame, or \code{DGEList} containing the input data.
+Rows correspond to observations and columns correspond to variables when \code{data_input}
+is a matrix or data.frame. If a \code{DGEList} is provided, rows correspond to variables and
 columns correspond to samples.}
 
 \item{meta_input}{A data.frame or matrix containing the sample-level metadata used to build
-the detrending design. This must include the columns referenced by `time`, `group`, `id`,
-`replicate_id`, and any variables appearing in `formula_extra`.}
+the detrending design. This must include the columns referenced by \code{time}, \code{group}, \code{id},
+\code{replicate_id}, and any variables appearing in \code{formula_extra}.}
 
-\item{time}{A character string giving the name of the column in `meta_input` that contains
+\item{time}{A character string giving the name of the column in \code{meta_input} that contains
 time.}
 
-\item{group}{Optional character string giving the name of a grouping column in `meta_input`.
-This is not removed by default. If `remove_trend_separate_groups = TRUE`, detrending is
+\item{group}{Optional character string giving the name of a grouping column in \code{meta_input}.
+This is not removed by default. If \code{remove_trend_separate_groups = TRUE}, detrending is
 performed separately within each group.}
 
 \item{id}{Optional character string giving the name of the subject identifier column in
-`meta_input`. This is used for random effects when `lm_method = "lme"`. If `NULL`, the
-function switches to ordinary linear regression (`lm`).}
+\code{meta_input}. This is used for random effects when \code{lm_method = "lme"}. If \code{NULL}, the
+function switches to ordinary linear regression (\code{lm}).}
 
-\item{lm_method}{Regression framework to use. Must be one of `"lm"` or `"lme"`.
-`"lm"` fits an ordinary linear model. `"lme"` fits a mixed-effects model using
-`lme4::lmer()`. Default is `"lme"`.}
+\item{lm_method}{Regression framework to use. Must be one of \code{"lm"} or \code{"lme"}.
+\code{"lm"} fits an ordinary linear model. \code{"lme"} fits a mixed-effects model using
+\code{lme4::lmer()}. Default is \code{"lme"}.}
 
 \item{formula_extra}{Optional formula containing additional nuisance fixed effects to remove.
-The variables in this formula must be column names in `meta_input`. For RRBS data, these
-extra terms are automatically interacted with `scaler`.}
+The variables in this formula must be column names in \code{meta_input}. For RRBS data, these
+extra terms are automatically interacted with \code{scaler}.}
 
-\item{random_effect_type}{Type of random-effect structure to use when `lm_method = "lme"`.
-Must be one of `"none"` or `"mesor"`. `"none"` adds no random effect and `"mesor"` adds
-a random intercept `(1 | id)`. Default is `"mesor"`.}
+\item{random_effect_type}{Type of random-effect structure to use when \code{lm_method = "lme"}.
+Must be one of \code{"none"} or \code{"mesor"}. \code{"none"} adds no random effect and \code{"mesor"} adds
+a random intercept \code{(1 | id)}. Default is \code{"mesor"}.}
 
 \item{obs_weights}{Optional matrix of observational weights with the same dimensions as
-`data_input` when `data_input` is a matrix or data.frame. Each column corresponds to one
-variable and each row to one observation. For RRBS input, `obs_weights` is required unless
-weights are estimated internally from a `DGEList` or by setting
-`force_weight_estimation = TRUE`.}
+\code{data_input} when \code{data_input} is a matrix or data.frame. Each column corresponds to one
+variable and each row to one observation. For RRBS input, \code{obs_weights} is required unless
+weights are estimated internally from a \code{DGEList} or by setting
+\code{force_weight_estimation = TRUE}.}
 
-\item{RRBS}{Logical. If `TRUE`, the data are assumed to represent RRBS / BS-seq style
+\item{RRBS}{Logical. If \code{TRUE}, the data are assumed to represent RRBS / BS-seq style
 methylation data, with each biological observation represented by two consecutive rows:
-methylated count followed by unmethylated count. In this mode, `replicate_id` must be
-provided. Default is `FALSE`.}
+methylated count followed by unmethylated count. In this mode, \code{replicate_id} must be
+provided. Default is \code{FALSE}.}
 
-\item{replicate_id}{Character string giving the name of the column in `meta_input` that
+\item{replicate_id}{Character string giving the name of the column in \code{meta_input} that
 identifies unique technical / replicate observations for RRBS data.}
 
-\item{remove_trend_separate_groups}{Logical. If `TRUE` and group information is provided,
-detrending is performed separately within each group. Default is `TRUE`.}
+\item{remove_trend_separate_groups}{Logical. If \code{TRUE} and group information is provided,
+detrending is performed separately within each group. Default is \code{TRUE}.}
 
-\item{force_weight_estimation}{Logical. If `TRUE`, weights are estimated internally using
-`voom()` or `voomWithDreamWeights()` even when `data_input` is not a `DGEList`.
-Default is `FALSE`.}
+\item{force_weight_estimation}{Logical. If \code{TRUE}, weights are estimated internally using
+\code{voom()} or \code{voomWithDreamWeights()} even when \code{data_input} is not a \code{DGEList}.
+Default is \code{FALSE}.}
 
-\item{ncores}{Number of cores to use for parallel processing. Default is `1`.}
+\item{ncores}{Number of cores to use for parallel processing. Default is \code{1}.}
 
-\item{verbose}{Logical. If `TRUE`, progress messages are printed. Default is `FALSE`.}
+\item{verbose}{Logical. If \code{TRUE}, progress messages are printed. Default is \code{FALSE}.}
 
 \item{...}{Additional arguments passed to the underlying model-fitting function.}
 }
@@ -90,21 +90,20 @@ to variables. The values are the residuals after removing the fitted trend model
 \description{
 Fits one regression model per variable and returns the residuals after removing
 a non-circadian linear trend. By default, the removed trend is the linear effect
-of `time`. Additional nuisance covariates can be supplied through
-`formula_extra`.
+of \code{time}. Additional nuisance covariates can be supplied through
+\code{formula_extra}.
 }
 \details{
-The function uses the same metadata-driven interface as `mixedcirc_detect()`.
+The function uses the same metadata-driven interface as \code{mixedcirc_detect()}.
 For RRBS / BS-seq style data, the model respects the paired methylated /
-unmethylated structure using `scaler` and `replicate_id`.
-
+unmethylated structure using \code{scaler} and \code{replicate_id}.
 
 For non-RRBS data, the default detrending model is:
 \preformatted{
 measure ~ 1 + time
 }
 
-If `formula_extra` is supplied, its terms are appended to the model. These terms are treated
+If \code{formula_extra} is supplied, its terms are appended to the model. These terms are treated
 as nuisance covariates to remove.
 
 For RRBS data, the default detrending model is:
@@ -112,16 +111,23 @@ For RRBS data, the default detrending model is:
 measure ~ 0 + replicate_id + scaler + time:scaler
 }
 
-If `formula_extra` is supplied for RRBS data, the extra terms are automatically interacted
-with `scaler`, so that the nuisance structure is removed on the methylation scale.
+If \code{formula_extra} is supplied for RRBS data, the extra terms are automatically interacted
+with \code{scaler}, so that the nuisance structure is removed on the methylation scale.
 
-If `remove_trend_separate_groups = TRUE`, the detrending model is fit separately within each
+If \code{remove_trend_separate_groups = TRUE}, the detrending model is fit separately within each
 group. Otherwise, a single common detrending model is fit across all groups. Group itself is
-not removed unless the user explicitly includes it in `formula_extra`.
+not removed unless the user explicitly includes it in \code{formula_extra}.
 
 If weights are not supplied directly, they may be estimated from count-like data using
-`limma::voom()` for ordinary linear models or `voomWithDreamWeights()`
+\code{limma::voom()} for ordinary linear models or \code{voomWithDreamWeights()}
 for mixed-effects models.
+
+This is a two-stage preprocessing procedure. When the scientific analysis
+requires adjustment for a linear time trend or another measured covariate,
+fitting it simultaneously with the harmonic terms through
+\code{mixedcirc_detect(formula_extra = ~ time + ...)} generally gives more direct
+inference. Use residualization when a separate detrended matrix is needed,
+and record the exact model used to create it.
 }
 \examples{
 data("circa_data")

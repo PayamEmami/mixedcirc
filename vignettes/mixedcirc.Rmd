@@ -1,462 +1,502 @@
 ---
-title: "Performing circadian and differential circadian rhythm analysis using `mixedcirc`"
+title: "Circadian omics analysis with mixedcirc"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Performing circadian and differential circadian rhythm analysis using mixedcirc}
+  %\VignetteIndexEntry{Circadian omics analysis with mixedcirc}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  warning = FALSE,
+  message = FALSE
 )
 ```
 
-## Introduction
+## Overview
 
-The `mixedcirc` package provides functions for circadian rhythm analysis using linear models and mixed-effects models. The main function, `mixedcirc_detect()`, fits one model per variable and returns estimates of mesor, amplitude, phase, and p-values for rhythmicity. When group information is available, the function can also test for differences in rhythmicity between groups.
+`mixedcirc` fits one harmonic regression model per molecular feature. It can
+use ordinary linear models for independent observations or mixed-effects
+models when measurements are repeated within subjects. The same workflow
+handles continuous measurements, RNA-seq counts supplied as an
+`edgeR::DGEList`, and paired methylated/unmethylated counts from RRBS or other
+bisulfite-sequencing experiments.
 
-The current version of `mixedcirc_detect()` expects:
+The main steps are:
 
-* `data_input`: a matrix, data.frame, or `DGEList` containing the measured variables
-* `meta_input`: a data.frame containing the metadata
-* `time`, `group`, `id`, and `replicate_id`: character strings pointing to column names in `meta_input`
+1. prepare a feature matrix and sample metadata;
+2. fit feature-wise models with `mixedcirc_detect()`;
+3. extract rhythmicity estimates and direct between-group contrasts;
+4. adjust for testing many features, inspect fit diagnostics, and visualize
+   the results.
 
-## Circadian model
+This vignette introduces the full workflow and then describes the input routes
+for RNA-seq and paired methylation counts.
 
-For each variable, circadian time is represented using cosine and sine terms:
-
-$$
-\text{inphase} = \cos\left(\frac{2\pi \times time}{period}\right)
-$$
-
-$$
-\text{outphase} = \sin\left(\frac{2\pi \times time}{period}\right)
-$$
-
-For grouped non-RRBS data, the default fixed-effects model is:
-
-$$
-\text{measure} \sim 1 + group + group:\text{inphase} + group:\text{outphase}
-$$
-
-If a mixed-effects model is used, a random-effect term is added depending on the selected `random_effect_type`. For example, with a random intercept by subject, the model becomes conceptually:
-
-$$
-\text{measure} \sim 1 + group + group:\text{inphase} + group:\text{outphase} + (1 \mid subject)
-$$
-
-If no group variable is provided, all samples are treated as belonging to a single group and the default model becomes:
-
-$$
-\text{measure} \sim 1 + \text{inphase} + \text{outphase}
-$$
-
-## Rhythmicity and differential rhythmicity tests
-
-For each group, rhythmicity is assessed by testing the joint null hypothesis:
-
-$$
-\beta_{\text{inphase}} = 0
-$$
-
-$$
-\beta_{\text{outphase}} = 0
-$$
-
-That is, a variable is considered rhythmic only if at least one of the sine or cosine coefficients is different from zero.
-
-When multiple groups are present, `mixedcirc_detect()` also performs pairwise tests for differential rhythmicity. Conceptually, for two groups, this corresponds to testing:
-
-$$
-\beta_{\text{inphase},1} - \beta_{\text{inphase},2} = 0
-$$
-
-$$
-\beta_{\text{outphase},1} - \beta_{\text{outphase},2} = 0
-$$
-
-In addition, a global rhythmicity test across all groups is reported.
-
-## Amplitude and phase
-
-For each group, amplitude is calculated from the cosine and sine coefficients as:
-
-$$
-\text{amplitude} = \sqrt{\beta_{\text{inphase}}^2 + \beta_{\text{outphase}}^2}
-$$
-
-Phase is derived from the estimated cosine and sine coefficients using the internal `calc_phase()` function. In practice, `mixedcirc` uses a quadrant-corrected arctangent-like calculation based on the signs of the estimated `inphase` and `outphase` coefficients.
-
-If `abs_phase = TRUE`, which is the default, the absolute value of the estimated phase is returned.
-
-## Example data
-
-We first load the package and inspect the example data:
-
-```{r setup, warning=FALSE, error=FALSE, message=FALSE}
+```{r load-package}
 library(mixedcirc)
 ```
 
-We are now going to simulate some data using `mixedcirc_simulate_data` function. `mixedcirc_simulate_data` can be used to generate continuous or RRBS-like circadian data with optional covariates and optional lagged relationships between selected features.
+## Data layout
 
-For this example we are going to generate circedian data for two groups:
+For a numeric matrix or data frame, rows are observations and columns are
+features. `meta_input` has one row for each observation, in exactly the same
+order. The arguments `time`, `group`, `id`, and `replicate_id` are column names
+in this metadata, not vectors supplied separately.
 
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-sim_data <- mixedcirc_simulate_data(
-  n_subjects_per_group = 10,
+An `edgeR::DGEList` follows the usual RNA-seq convention: genes are rows and
+samples are columns. The number and order of its columns must match the rows of
+`meta_input`.
+
+RRBS input has a separate paired layout, described below.
+
+## The harmonic model
+
+For period \(\tau\), mixedcirc represents time with
+
+$$
+\cos(2\pi t/\tau) \quad\text{and}\quad \sin(2\pi t/\tau).
+$$
+
+In a two-group continuous-data analysis, the default fixed part of the model is
+
+$$
+y = M_g + C_g\cos(2\pi t/\tau) + S_g\sin(2\pi t/\tau) + \epsilon.
+$$
+
+A mixed model can add a subject-specific random intercept, or random intercept
+and harmonic terms. The latter allows subjects to differ in mesor and rhythm,
+but it requires enough observations per subject to estimate the additional
+variance components reliably.
+
+Amplitude and phase are derived from the harmonic coefficients:
+
+$$
+A_g = \sqrt{C_g^2 + S_g^2}, \qquad
+\phi_g = \operatorname{atan2}(-S_g, C_g).
+$$
+
+The fitted curve is \(M_g + A_g\cos(2\pi t/\tau + \phi_g)\).
+`mixedcirc_detect()` represents phase on `[-2*pi, 0)`. Peak time is
+`-phase / omega`, wrapped into one period, where `omega = 2*pi/period`.
+`mixedcirc_detectpeaks()` performs this conversion.
+
+Rhythmicity within a group is a joint test of \(C_g=S_g=0\). A direct
+differential-rhythm test compares both harmonic coefficients between groups.
+Different significance decisions in two separate within-group tests do not, by
+themselves, show that the rhythms differ.
+
+## Continuous repeated-measures analysis
+
+The simulator returns feature measurements, matching metadata, optional
+weights, and the generating parameters. Here each subject is observed at eight
+times in one of two groups.
+
+```{r continuous-simulation}
+sim <- mixedcirc_simulate_data(
+  n_subjects_per_group = 4,
   n_timepoints = 8,
   n_features = 5,
-  groups = c("A", "B"),
-  seed = 1
+  groups = c("control", "treated"),
+  seed = 17
 )
+
+dim(sim$data_input)
+head(sim$meta_input)
 ```
 
-`mixedcirc_simulate_data` returns a list containing four data frames.
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-str(sim_data)
-```
+Use a mixed model because observations from the same subject are correlated.
+A random mesor is a practical starting point for modest repeated-measures
+studies.
 
-In order to use `mixedcirc_detect()` to perform rhythmicity analysis we need two data.frames: `data_input` which is simulated feature matrix and `meta_input` which  contains meta data.
-
-
-`data_input` must be a numeric matrix, data.frame, or 'DGEList' containing the input data. Rows correspond to observations and columns correspond to variables.  
-
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-
-head(sim_data$data_input)
-```
-
-
-`meta_input` is a data.frame or matrix containing the sample-level metadata used to build the design matrix. This must include the columns referenced by 'time', 'group', 'id', 'replicate_id', and any terms in 'formula_extra'.
-
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-
-head(sim_data$meta_input)
-```
-
-## Running circadian analysis
-
-We can now perform circadian and differential circadian analysis using `mixedcirc_detect()`:
-
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-results <- mixedcirc_detect(
-  data_input = sim_data$data_input,
-  meta_input = sim_data$meta_input,
+```{r continuous-fit}
+fit <- mixedcirc_detect(
+  data_input = sim$data_input,
+  meta_input = sim$meta_input,
   time = "time",
   group = "group",
   id = "id",
   period = 24,
-  verbose = FALSE
+  lm_method = "lme",
+  random_effect_type = "mesor"
 )
+
+length(fit)
+fit[[1]]@results
 ```
 
-The result is a `mixedcirc_fit_list` object containing one fitted result per variable:
+For independent observations, set `lm_method = "lm"` and
+`random_effect_type = "none"`. If `id` is omitted, mixedcirc switches to the
+ordinary linear model and reports that change.
 
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-length(results)
+### Analysis-ready results
+
+The long result tables are usually more convenient than accessing S4 slots.
+Adjusted p-values are calculated across features separately within each group
+or contrast.
+
+```{r result-tables}
+estimates <- mixedcirc_results(fit, type = "estimates")
+contrasts <- mixedcirc_contrasts(fit)
+diagnostics <- mixedcirc_results(fit, type = "diagnostics")
+
+head(estimates)
+head(contrasts)
+mixedcirc_summary(fit)
 ```
 
-We can inspect the first fitted result:
+`p_rhythm` tests rhythmicity in one group. `p_differential` is the pairwise
+joint test that the two harmonic coefficients differ. With more than two
+groups, `p_rhythm_global` asks whether any group is rhythmic, whereas
+`p_differential_global` asks whether the harmonic coefficient vector differs
+anywhere among the groups.
 
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-print(results[1])
+`mixedcirc_classify()` combines these tests into conservative descriptive
+classes. Gain, loss, and altered-rhythm calls require significant direct
+evidence of a between-group difference. A feature that crosses the rhythmicity
+threshold in only one group but lacks a significant direct contrast is labelled
+uncertain. Optional thresholds can require a minimum amplitude change,
+peak-time shift, or harmonic distance.
+
+```{r classification}
+classes <- mixedcirc_classify(
+  fit,
+  alpha = 0.05,
+  min_amplitude_change = 0.25,
+  min_phase_shift = 1
+)
+head(classes)
 ```
 
-## Plotting individual fitted variables
+Classification organizes statistical results; it is not a separate model and
+does not replace inspection of estimates, uncertainty, and diagnostics.
 
-An individual fitted variable can be plotted directly:
+### Plots and subject-specific rhythms
 
-```{r, warning=FALSE, error=FALSE, message=FALSE, fig.height=5, fig.width=7}
-plot(results[1])
+An individual fit shows observations and the fitted harmonic curve.
+
+```{r individual-plot, fig.width=7, fig.height=4.5}
+plot(fit[[1]])
 ```
 
-The plotting function provides additional options. For example, we may overlay a smooth curve and hide the points:
+Dataset-level plots show complementary aspects of the analysis.
 
-```{r, warning=FALSE, error=FALSE, message=FALSE, fig.height=5, fig.width=7}
-plot(results[1], plot_smooth = TRUE, plot_points = FALSE)
+```{r dataset-plots, fig.width=7, fig.height=4.5}
+mixedcirc_plot_heatmap(fit, npoints = 48)
+mixedcirc_plot_differential(fit, label_n = 3)
+mixedcirc_plot_polar(fit, label_n = 3)
+mixedcirc_plot_design(fit, by_subject = TRUE)
 ```
 
-The solid line shows the fitted circadian model, while the dashed smooth curve provides a data-driven summary of the observed pattern.
+The polar plot uses angle for peak time and radial distance for amplitude;
+transparency indicates whether the within-group rhythmicity test passed the
+selected FDR threshold. The differential plot should be interpreted together
+with the direct contrast table.
 
-## Bootstrap testing for an individual fitted model
+Model diagnostics are available as a table and as residual or quantile plots.
 
-You can also perform a bootstrap-based significance test on an individual fitted model:
-
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-boot_results <- mixedcirc_boottest(results[1], nsim = 10, seed = 10)
-print(boot_results)
+```{r diagnostic-plot, fig.width=7, fig.height=4.5}
+mixedcirc_plot_diagnostics(fit, features = colnames(sim$data_input)[1:2])
 ```
 
-## Using additional covariates
+When random harmonic terms were fitted, individual rhythm estimates can be
+reconstructed from fixed and random effects.
 
-The function allows you to include additional fixed effects through `formula_extra`. These covariates must be present in `meta_input`.
+```{r subject-rhythms}
+fit_subject <- mixedcirc_detect(
+  sim$data_input[, 1:2, drop = FALSE],
+  sim$meta_input,
+  time = "time",
+  group = "group",
+  id = "id",
+  random_effect_type = "mesor_phase"
+)
 
-For example, let us create an artificial batch and age variables and include them in the model:
+head(mixedcirc_subject_rhythms(fit_subject))
+```
 
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-sim_data_cov <- mixedcirc_simulate_data(
-  n_subjects_per_group = 10,
-  n_timepoints = 8,
-  n_features = 5,
+Check convergence and singularity before interpreting subject-level
+amplitudes or phases. A simpler random-intercept model is preferable when the
+study cannot support random harmonic coefficients.
+
+## Covariates and linear trends
+
+Additional fixed effects are supplied as a one-sided formula. They must be
+columns of `meta_input`.
+
+```{r covariates}
+sim_cov <- mixedcirc_simulate_data(
+  n_subjects_per_group = 4,
+  n_timepoints = 6,
+  n_features = 3,
   groups = c("A", "B"),
-  seed = 1,
   include_covariates = TRUE,
-  batch_effects=c(B1=0,B2=10)
+  batch_effects = c(B1 = 0, B2 = 2),
+  seed = 23
 )
 
-```
-
-We now fit two models, one with and one without covariate adjustment and compare the results:
-
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-
-results_without_adjustment <- mixedcirc_detect(
-  data_input = sim_data_cov$data_input,
-  meta_input = sim_data_cov$meta_input,
+fit_cov <- mixedcirc_detect(
+  sim_cov$data_input,
+  sim_cov$meta_input,
   time = "time",
   group = "group",
   id = "id",
-  period = 24,
-  verbose = FALSE
+  formula_extra = ~ age + batch
 )
+```
 
-results_with_adjustment <- mixedcirc_detect(
-  data_input = sim_data_cov$data_input,
-  meta_input = sim_data_cov$meta_input,
+If a linear time trend is part of the scientific model, it can be estimated
+alongside the harmonic terms with `formula_extra = ~ time`. This simultaneous
+model is generally preferable for inference to removing a trend first.
+
+Two helpers are available when a separate detrended matrix is genuinely needed:
+`mixedcirc_remove_trend()` residualizes the input measurements, whereas
+`mixedcirc_detrend()` residualizes the fitted curves stored in a mixedcirc
+object. The latter is descriptive post-processing and does not change the
+original rhythm tests.
+
+```{r detrending-example, eval=FALSE}
+residualized_input <- mixedcirc_remove_trend(
+  sim$data_input,
+  sim$meta_input,
   time = "time",
   group = "group",
-  id = "id",
-  period = 24,
-  verbose = FALSE,formula_extra = ~batch+age
-)
-
-
-plot(results_without_adjustment[1],plot_points=F,plot_title="without adjustment")
-plot(results_with_adjustment[1],plot_points=F,plot_title="with adjustment")
-
-```
-
-You can see the effect of addition covariates have been removed, making the fitted curve focusing on the rhythm. 
-
-## Comparing two rhythms
-
-It often happens that we have multiple rhythms and would like to know whether there is an association between their curves. This can be done by comparing the curves directly or by performing a lag analysis. Lag analysis examines whether one rhythm is shifted in time relative to another. In other words, it asks whether changes in one curve tend to occur before, after, or at the same time as changes in the other curve. This can help identify possible delays, phase shifts, or lead–lag relationships between the rhythms.
-
-`mixedcirc` supports cross correlation and association using `mixedcirc_compare` function. To demonstrate it let's simulate data with a known lag:
-
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-sim_data_lag <- mixedcirc_simulate_data(
-  n_subjects_per_group = 10,
-  n_timepoints = 8,
-  n_features = 5,
-  groups = c("A", "B"),
-  cross_lag_spec = list(
-    list(from = 1, to = 2, lag = 1, beta = 1.0),
-    list(from = 3, to = 4, lag = c(A = 1, B = 2), beta = 0.7)
-  ),
-  seed = 1
-)
-
-
-```
-Here using `cross_lag_spec` parameter we introduced two lagged correlation. Feature 2 is a lagged version of feature 1 and feature 4 is the lagged version of feature 3. 
-
-We can now fit the data using `mixedcirc_detect`:
-
-
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-results_lag <- mixedcirc_detect(
-  data_input = sim_data_lag$data_input,
-  meta_input = sim_data_lag$meta_input,
-  time = "time",
-  group = "group",
-  id = "id",
-  period = 24,
-  verbose = FALSE
-)
-
-plot(results_lag[3],plot_points=F,plot_title="feature 3")
-plot(results_lag[4],plot_points=F,plot_title="feature 4")
-```
-
-and now we can compare the fitted models. For example we can compare feature 3 and 4 using `mixedcirc_compare` for lags from -2 to 2:
-
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-mixedcirc_compare(results_lag[3],results_lag[4],lags = -2:2)
-```
-
-
-You can see that for this comparison the method correctly identified the lag at 1 and 2 unit shifts. 
-
-
-## Detrending and heatmaps
-
-`mixedcirc` can also be used to remove linear trends from fitted variables, which may improve downstream visualization such as heatmaps.
-
-The `mixedcirc_detrend()` function operates on fitted `mixedcirc` results and returns a detrended matrix.
-
-We first visualize the raw data:
-
-```{r, warning=FALSE, error=FALSE, message=FALSE, fig.height=5, fig.width=7}
-
-sim_data <- mixedcirc_simulate_data(
-  n_subjects_per_group = 10,
-  n_timepoints = 8,
-  n_features = 50,
-  groups = c("A", "B"),
-  seed = 1
-)
-
-results <- mixedcirc_detect(
-  data_input = sim_data$data_input,
-  meta_input = sim_data$meta_input,
-  time = "time",
-  group = "group",
-  id = "id",
-  period = 24,
-  verbose = FALSE
-)
-
-res_tab <- do.call(rbind, lapply(seq_along(results), function(i) as.data.frame(results[i]@results)))
-ord_features <- order(res_tab$phase_A, res_tab$amps_A, na.last = TRUE)
-sample_ord <- order(sim_data$meta_input$group, sim_data$meta_input$time)
-
-my_data <- t(sim_data$data_input[sample_ord, ])
-my_data <- my_data[ord_features, ]
-my_colors <- c("red", "blue")[as.factor(sim_data$meta_input$group[sample_ord])]
-
-heatmap(
-  x = my_data,
-  Rowv = NA,
-  Colv = NA,
-  ColSideColors = my_colors
-)
-```
-
-Now we fit the model:
-
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-
-```
-
-We can then detrend the fitted data:
-
-```{r, warning=FALSE, error=FALSE, message=FALSE, fig.height=5, fig.width=7}
-detrended <- mixedcirc_detrend(results, per_group = T, verbose = FALSE)
-
-my_data <- t(detrended[sample_ord, ])
-my_data <- my_data[ord_features, ]
-my_colors <- c("red", "blue")[as.factor(sim_data$meta_input$group[sample_ord])]
-
-heatmap(
-  x = my_data,
-  Rowv = NA,
-  Colv = NA,
-  ColSideColors = my_colors
-)
-
-```
-
-After detrending, rhythmic patterns may become easier to see because non-circadian trends are reduced.
-
-
-## Data integration
-
-`mixedcirc` also provides experimental support for integrative rhythm analysis across multiple datasets, for example when combining transcriptomics and metabolomics. In that setting, the goal is to extract components or scores that capture patterns shared across several data types.
-
-This functionality is provided by `mixedcirc_integrate()`. The input should be a list of matrices or data.frames, one for each dataset.
-
-Below we create two small example datasets by splitting the internal example matrix:
-
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-
-sim_data <- mixedcirc_simulate_data(
-  n_subjects_per_group = 10,
-  n_timepoints = 8,
-  n_features = 50,
-  groups = c("A", "B"),
-  seed = 1
-)
-
-
-
-
-data_1 <- sim_data$data_input[, 1:25, drop = FALSE]
-colnames(data_1) <- paste0("data_1_", seq_len(ncol(data_1)))
-
-data_2 <- sim_data$data_input[, 26:50, drop = FALSE]
-colnames(data_2) <- paste0("data_2_", seq_len(ncol(data_2)))
-
-data_input <- list(a = data_1, b = data_2)
-lapply(data_input, dim)
-```
-
-We can then integrate the datasets:
-
-```{r, warning=FALSE, error=FALSE, message=FALSE}
-integration_results <- mixedcirc_integrate(
-  data_input,meta_input = sim_data$meta_input,
-  time = "time",
-  group ="group",
   id = "id"
 )
+
+detrended_fitted_curves <- mixedcirc_detrend(fit, per_group = TRUE)
 ```
 
-The returned object contains integrated scores and loadings. These can be extracted using `mixedcirc_getscore()`.
+## Bootstrap uncertainty
 
-For example, we can extract the average scores and analyze them with `mixedcirc_detect()`:
+`mixedcirc_boottest()` simulates new responses from one retained fitted model,
+refits the model, and recomputes mesor, amplitude, and phase summaries. This is
+a parametric bootstrap: subjects and time points are not resampled.
 
-```{r, warning=FALSE, error=FALSE, message=FALSE, fig.height=5, fig.width=7}
-score_matrix <- mixedcirc_getscore(integration_results, type = "average")
+```{r bootstrap, fig.width=7, fig.height=4.5}
+boot <- mixedcirc_boottest(
+  fit[[1]],
+  nsim = 10,
+  seed = 31,
+  parallel = "no"
+)
+boot
+mixedcirc_plot_bootstrap(boot)
+```
 
-fitted_scores <- mixedcirc_detect(
-  data_input = score_matrix,
-  meta_input = sim_data$meta_input,
+Ten replicates keep this vignette quick; a real analysis needs substantially
+more. Phase intervals use wrapped deviations around the fitted phase, so an
+interval can cross the circular boundary without appearing to span the whole
+cycle.
+
+## RNA-seq counts
+
+RNA-seq counts enter as an `edgeR::DGEList`. Filter unexpressed and low-count
+genes before fitting. For an ordinary model, mixedcirc uses `limma::voom()`.
+For repeated measurements, it estimates voom-style mean-variance precision
+weights with its own mixed-model implementation and then passes those weights
+to the feature-wise circadian models. This pathway does not depend on the
+`variancePartition` package.
+
+```{r rnaseq, eval=requireNamespace("edgeR", quietly=TRUE)}
+set.seed(41)
+rna_counts <- matrix(
+  stats::rnbinom(8 * nrow(sim$meta_input), mu = 80, size = 8),
+  nrow = 8,
+  dimnames = list(paste0("gene_", 1:8), NULL)
+)
+dge <- edgeR::DGEList(rna_counts)
+dge <- edgeR::calcNormFactors(dge)
+keep <- edgeR::filterByExpr(dge, group = sim$meta_input$group)
+dge <- dge[keep, , keep.lib.sizes = FALSE]
+
+rna_fit <- mixedcirc_detect(
+  dge,
+  sim$meta_input,
   time = "time",
   group = "group",
   id = "id",
-  period = 24,
-  verbose = FALSE
+  lm_method = "lme",
+  random_effect_type = "mesor"
 )
 
-plot(fitted_scores[1], plot_points = FALSE, ylab = "L1")
+head(mixedcirc_results(rna_fit, "estimates"))
 ```
 
-The integrated scores are expected to summarize the shared temporal trend across the datasets.
+Constant genes cannot provide a mean-variance relationship and should be
+removed during filtering. The transformed values and observation weights used
+for each successful fit are retained in its experimental design.
 
-The original integration model can also be extracted and reused for additional visualizations. For example, we can visualize the loadings for block `b`:
+## Paired RRBS and BS-seq counts
 
-```{r, warning=FALSE, error=FALSE, message=FALSE, fig.height=5, fig.width=5}
-model <- mixedcirc_getscore(integration_results, type = "model")
-mixOmics::plotLoadings(model, block = "b", size.title = 0.7)
+Paired methylation input has two consecutive rows per biological observation:
+the methylated count followed by the unmethylated count. `meta_input` still has
+one row per biological observation. A unique `replicate_id` identifies each
+pair. `mixedcirc_rrbs_qc()` validates this layout and summarizes coverage
+without reordering or filtering the data.
+
+```{r rrbs-qc, fig.width=7, fig.height=4.5}
+rrbs <- mixedcirc_simulate_data(
+  n_subjects_per_group = 3,
+  n_timepoints = 6,
+  n_features = 4,
+  groups = c("A", "B"),
+  rrbs = TRUE,
+  seed = 53
+)
+
+rrbs_qc <- mixedcirc_rrbs_qc(
+  rrbs$data_input,
+  rrbs$meta_input,
+  replicate_id = "replicate_id",
+  min_coverage = 8
+)
+rrbs_qc
+mixedcirc_plot_rrbs_qc(rrbs_qc, type = "feature_coverage")
 ```
 
-This helps identify variables that contribute strongly to the integrated component.
+The paired model conditions on coverage through sample-specific terms and
+estimates the rhythmic methylation effect on the methylated-count indicator.
+Supply a positive weight matrix with the same paired dimensions, or request
+internal weight estimation.
 
+```{r rrbs-fit}
+rrbs_fit <- mixedcirc_detect(
+  rrbs$data_input,
+  rrbs$meta_input,
+  time = "time",
+  group = "group",
+  id = "id",
+  RRBS = TRUE,
+  replicate_id = "replicate_id",
+  obs_weights = rrbs$obs_weights,
+  random_effect_type = "mesor"
+)
 
-## Notes
+head(mixedcirc_results(rrbs_fit, "estimates"))
+```
 
-A few important practical notes:
+The paired-count strategy follows Chen et al. (2017), *Differential methylation
+analysis of reduced representation bisulfite sequencing experiments using
+edgeR*, F1000Research, <https://pmc.ncbi.nlm.nih.gov/articles/PMC5747346/>.
 
-* `time`, `group`, `id`, and `replicate_id` are column names in `meta_input`, not raw vectors.
-* If `id` is not provided, `mixedcirc_detect()` switches to ordinary linear regression.
-* If `RRBS = TRUE`, the data are assumed to be arranged as methylated and unmethylated rows for each replicate, and `replicate_id` must be provided.
-* Additional covariates can be added through `formula_extra`.
-* No multiple-testing correction is performed automatically inside `mixedcirc_detect()`.
+For very large data already stored as a `methylKit::methylBaseDB`, the
+experimental `mixedcirc_rrbs_voom_mixed()` function processes tabix-backed data
+in chunks. It relies on methylKit's internal on-disk API, checks compatibility
+at run time, and writes generated databases beside the input database. The
+optional `mixed_circ_tss_calculation()` and `construct_introns()` functions
+support BED/GFF annotation of methylation loci.
 
-## Summary
+## Repeated-measures associations and lags
 
-The `mixedcirc` package provides a flexible framework for:
+`mixedcirc_compare()` compares observed or fitted signals using directional
+association models, Pearson correlation, or repeated-measures correlation.
+`mixedcirc_add_lag()` creates the shifted signals used in these comparisons.
 
-* circadian rhythm analysis of individual variables
-* differential rhythmicity analysis between groups
-* adjustment for additional covariates
-* integration of multiple omics datasets
-* detrending and visualization of rhythmic signals
+Lags count positions after observations are ordered by time within the selected
+subject or group. They are not clock-time units. With irregular sampling, one
+lag step can represent different elapsed times and should not be described as a
+fixed number of hours.
 
-The main workflow is centered around `mixedcirc_detect()`, which returns fitted models together with interpretable rhythm summaries such as mesor, amplitude, phase, and p-values.
+```{r lag-comparison}
+lag_sim <- mixedcirc_simulate_data(
+  n_subjects_per_group = 4,
+  n_timepoints = 8,
+  n_features = 2,
+  groups = c("A", "B"),
+  cross_lag_spec = list(
+    list(from = 1, to = 2, lag = 1, beta = 1)
+  ),
+  seed = 61
+)
 
+lag_fit <- mixedcirc_detect(
+  lag_sim$data_input,
+  lag_sim$meta_input,
+  time = "time",
+  group = "group",
+  id = "id"
+)
 
+mixedcirc_compare(
+  lag_fit[[1]],
+  lag_fit[[2]],
+  lags = -2:2,
+  analysis = "pearson"
+)$results
+```
+
+These are association analyses, not tests of causal direction. Searching
+several lags on the same data is exploratory; the returned p-values are not
+adjusted across candidate lags.
+
+## Large feature panels
+
+`ncores` controls feature-parallel fitting. mixedcirc restores the caller's
+existing `future` plan when fitting finishes, including after an error.
+
+Set `store_models = FALSE` when only estimates, tests, and diagnostics are
+needed. This reduces object size, but interpolation, subject-level prediction,
+and bootstrap procedures require retained model objects. By default one failed
+feature stops the run. `on_error = "keep"` instead records the failure and
+continues with the other features.
+
+```{r high-throughput, eval=FALSE}
+large_fit <- mixedcirc_detect(
+  large_matrix,
+  metadata,
+  time = "time",
+  group = "condition",
+  id = "subject",
+  ncores = 4,
+  store_models = FALSE,
+  on_error = "keep"
+)
+
+mixedcirc_results(large_fit, "diagnostics")
+```
+
+Review failed, non-converged, singular, or rank-deficient fits before drawing
+biological conclusions. `mixedcirc_adjust()` remains available for adding
+adjusted columns to the original wide feature results, while
+`mixedcirc_results()` and `mixedcirc_contrasts()` provide correction directly
+in their analysis-ready tables.
+
+## Experimental multi-omics integration
+
+`mixedcirc_integrate()` performs supervised sparse generalized canonical
+correlation analysis across two or more omics blocks. The time and optional
+group design are part of the component-learning procedure. Consequently,
+testing the learned scores against the same design in the same samples is not
+independent confirmatory evidence. Use the scores for exploration, or validate
+them with independent data or resampling that repeats the complete integration
+workflow.
+
+```{r integration, eval=FALSE}
+blocks <- list(
+  transcript = transcript_matrix,
+  metabolite = metabolite_matrix
+)
+
+integrated <- mixedcirc_integrate(
+  blocks,
+  meta_input = metadata,
+  time = "time",
+  group = "condition",
+  id = "subject"
+)
+
+scores <- mixedcirc_getscore(integrated, type = "average")
+```
+
+## Practical checklist
+
+Before fitting, confirm that sample order matches the metadata, time is numeric,
+subject and group labels are correct, the chosen period matches the scientific
+question, and count data have been filtered appropriately. For RRBS, run the
+paired-count QC first. After fitting, inspect diagnostics, adjust p-values
+across features, use direct contrasts for group differences, and report effect
+sizes and uncertainty alongside significance thresholds.

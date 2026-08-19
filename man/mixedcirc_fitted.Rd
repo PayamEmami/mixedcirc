@@ -7,30 +7,30 @@
 mixedcirc_fitted(fit = NULL, verbose = FALSE)
 }
 \arguments{
-\item{fit}{An object of class `mixedcirc_fit` or `mixedcirc_fit_list`.}
+\item{fit}{An object of class \code{mixedcirc_fit} or \code{mixedcirc_fit_list}.}
 
-\item{verbose}{Logical. If `TRUE`, progress messages are printed. Default `FALSE`.}
+\item{verbose}{Logical. If \code{TRUE}, progress messages are printed. Default \code{FALSE}.}
 }
 \value{
 A numeric matrix of fitted values. Rows correspond to the rows of
-`exp_design` stored in the fitted object, and columns correspond to features.
+\code{exp_design} stored in the fitted object, and columns correspond to features.
 }
 \description{
-This function extracts fitted values from one or more fitted `mixedcirc`
+This function extracts fitted values from one or more fitted \code{mixedcirc}
 models and returns them as a matrix aligned with the stored experimental
 design.
 }
 \details{
-This function returns the fitted values stored in the `.fitted` column of
-`exp_design`, which is created by the updated `mixedcirc_detect()`.
-If some rows were dropped during model fitting, their fitted values remain `NA`.
+This function returns the fitted values stored in the \code{.fitted} column of
+\code{exp_design}, which is created by \code{mixedcirc_detect()}.
+If some rows were dropped during model fitting, their fitted values remain \code{NA}.
 }
 \examples{
 library(mixedcirc)
 data("circa_data")
 
 results <- mixedcirc_detect(
-  data_input = circa_data$data_matrix,
+  data_input = circa_data$data_matrix[, 1, drop = FALSE],
   meta_input = data.frame(
     time = circa_data$time,
     group = circa_data$group,

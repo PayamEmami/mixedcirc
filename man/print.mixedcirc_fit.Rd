@@ -2,10 +2,18 @@
 % Please edit documentation in R/classes.R
 \name{print.mixedcirc_fit}
 \alias{print.mixedcirc_fit}
-\title{Plots circadian rhythm}
+\title{Print a single-feature result}
 \usage{
 \method{print}{mixedcirc_fit}(x, ...)
 }
+\arguments{
+\item{x}{A \code{mixedcirc_fit} object.}
+
+\item{...}{Additional arguments passed to \code{\link[=print]{print()}}.}
+}
+\value{
+\code{x}, invisibly.
+}
 \description{
-A simple function for printing the mixedcirc_fit object
+Print a single-feature result
 }

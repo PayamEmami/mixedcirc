@@ -15,23 +15,23 @@ mixedcirc_add_lag(
 )
 }
 \arguments{
-\item{x}{A `mixedcirc_fit` object.}
+\item{x}{A \code{mixedcirc_fit} object.}
 
-\item{lags}{Integer vector of lags / leads to create.}
+\item{lags}{Integer vector of lags or leads, measured in observation steps.}
 
-\item{lag_by}{Optional character vector of column names in `x@exp_design`
-defining the grouping structure used before shifting. If `NULL`, the
-function uses the original `id` column when available, otherwise the
-original `group` column when available, otherwise no grouping.
-To force no grouping, use `lag_by = character(0)`.}
+\item{lag_by}{Optional character vector of column names in \code{x@exp_design}
+defining the grouping structure used before shifting. If \code{NULL}, the
+function uses the original \code{id} column when available, otherwise the
+original \code{group} column when available, otherwise no grouping.
+To force no grouping, use \code{lag_by = character(0)}.}
 
-\item{lag_mode}{One of `"within_sorted"` or `"raw_order"`.}
+\item{lag_mode}{One of \code{"within_sorted"} or \code{"raw_order"}.}
 
-\item{type}{One of `"original"` or `"fitted"`.}
+\item{type}{One of \code{"original"} or \code{"fitted"}.}
 
 \item{value_name}{Name of the output column containing the unshifted signal.}
 
-\item{keep_order}{Logical. If `TRUE`, the returned data frame is restored to
+\item{keep_order}{Logical. If \code{TRUE}, the returned data frame is restored to
 the original row order after shift creation.}
 }
 \value{
@@ -40,25 +40,27 @@ and one new column per requested lag/lead.
 }
 \description{
 Creates lagged and/or lead versions of the measured or fitted values from a
-single `mixedcirc_fit` object.
+single \code{mixedcirc_fit} object.
 }
 \details{
 Shifting can be performed either in the raw row order or after sorting by time
 within user-defined groups such as subject, group, or any other metadata
-columns stored in the fitted object's `exp_design`.
+columns stored in the fitted object's \code{exp_design}.
 
-Positive values in `lags` create lagged variables:
+Positive values in \code{lags} create lagged variables:
 \preformatted{
 x_lag1[t] = x[t-1]
 }
 
-Negative values in `lags` create lead variables:
+Negative values in \code{lags} create lead variables:
 \preformatted{
 x_lead1[t] = x[t+1]
 }
+Lags are counted in positions after ordering by time; they are not elapsed
+time units. Check the sampling schedule before interpreting a lag in hours.
 
 For RRBS fits, the doubled row structure is preserved. The shift is applied at
-the biological observation level, while keeping the paired `scaler = 1` and
-`scaler = 0` rows aligned. In other words, both rows belonging to the same
+the biological observation level, while keeping the paired \code{scaler = 1} and
+\code{scaler = 0} rows aligned. In other words, both rows belonging to the same
 biological observation are shifted together.
 }

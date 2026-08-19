@@ -1,0 +1,60 @@
+url: https://github.com/mixedcirc/mixedcirc
+
+template:
+  bootstrap: 5
+
+reference:
+  - title: Detection and inference
+    contents:
+      - mixedcirc_detect
+      - mixedcirc_results
+      - mixedcirc_contrasts
+      - mixedcirc_classify
+      - mixedcirc_summary
+      - mixedcirc_adjust
+      - mixedcirc_detectpeaks
+  - title: Visualization and fitted values
+    contents:
+      - starts_with("mixedcirc_plot_")
+      - mixedcirc_fit_plot
+      - mixedcirc_interpolate
+      - mixedcirc_fitted
+      - mixedcirc_subject_rhythms
+  - title: Uncertainty and diagnostics
+    contents:
+      - mixedcirc_boottest
+      - mixedcirc_rrbs_qc
+  - title: Count data and genomic annotation
+    contents:
+      - voomWithDreamWeights
+      - fitVarPartModel
+      - fitExtractVarPartModel
+      - mixedcirc_rrbs_voom_mixed
+      - mixed_circ_tss_calculation
+      - construct_introns
+  - title: Data preparation and secondary analyses
+    contents:
+      - mixedcirc_remove_trend
+      - mixedcirc_detrend
+      - mixedcirc_add_lag
+      - mixedcirc_compare
+      - mixedcirc_simulate_data
+      - circa_data
+  - title: Experimental integration
+    contents:
+      - mixedcirc_integrate
+      - mixedcirc_getscore
+  - title: Result objects and methods
+    contents:
+      - mixedcirc_boot-class
+      - mixedcirc_fit-class
+      - mixedcirc_fit_list-class
+      - mixedcirc_integration-class
+      - mixedcirc-subset
+      - "length,mixedcirc_fit_list-method"
+      - "plot,mixedcirc_fit,missing-method"
+      - print.mixedcirc_fit
+      - print.mixedcirc_fit_list
+      - print.mixedcirc_integration
+      - print.mixedcirc_rrbs_qc
+      - print.mixedcirc_summary

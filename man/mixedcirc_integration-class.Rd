@@ -4,19 +4,29 @@
 \name{mixedcirc_integration-class}
 \alias{mixedcirc_integration-class}
 \alias{mixedcirc_integration}
-\title{Represents the result of integration on multiple data sets}
+\alias{show,mixedcirc_integration-method}
+\title{Experimental integration result for multiple data sets}
+\usage{
+\S4method{show}{mixedcirc_integration}(object)
+}
+\arguments{
+\item{object}{A \code{mixedcirc_integration} object.}
+}
 \description{
-Represents the result of integration on multiple data sets
+Experimental integration result for multiple data sets
+}
+\details{
+This class and the integration workflow that creates it are experimental.
 }
 \section{Slots}{
 
 \describe{
-\item{\code{partial}}{A list of partial scores for individual data sets}
+\item{\code{partial}}{A named list of sample score matrices, one per data block.}
 
-\item{\code{average}}{A matrix of average scores}
+\item{\code{average}}{A matrix of average scores across blocks.}
 
-\item{\code{loadings}}{A List of loadings for individual data sets}
+\item{\code{loadings}}{A named list of feature loading matrices, one per data block.}
 
-\item{\code{model}}{The original model fitted}
+\item{\code{model}}{The fitted SGCCA model.}
 }}
 

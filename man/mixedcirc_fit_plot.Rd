@@ -25,11 +25,12 @@ mixedcirc_fit_plot(
 )
 }
 \arguments{
-\item{x}{A `mixedcirc_fit` object.}
+\item{x}{A \code{mixedcirc_fit} object.}
 
 \item{y}{Not used.}
 
-\item{period}{Rhythm period. Default 24.}
+\item{period}{Rhythm period. When omitted, the period stored in \code{x} by
+\code{mixedcirc_detect()} is used; the fallback is \code{24} for older objects.}
 
 \item{min_time}{Minimum time for prediction. If NULL, taken from data.}
 
@@ -64,6 +65,6 @@ mixedcirc_fit_plot(
 A ggplot object.
 }
 \description{
-Plots fitted circadian curves from a `mixedcirc_fit` object and can
+Plots fitted circadian curves from a \code{mixedcirc_fit} object and can
 automatically fix or average over extra covariates used in the model.
 }

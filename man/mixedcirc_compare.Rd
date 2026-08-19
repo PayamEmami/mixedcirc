@@ -22,97 +22,99 @@ mixedcirc_compare(
 )
 }
 \arguments{
-\item{x}{A `mixedcirc_fit` object providing the lagged predictor signal.}
+\item{x}{A \code{mixedcirc_fit} object providing the lagged predictor signal.}
 
-\item{y}{A `mixedcirc_fit` object providing the response signal.}
+\item{y}{A \code{mixedcirc_fit} object providing the response signal.}
 
-\item{lags}{Integer vector of lags / leads to evaluate.}
+\item{lags}{Integer vector of lags or leads to evaluate. Values count
+positions in the time-ordered observations, not elapsed time units.}
 
-\item{analysis}{One of `"association"`, `"pearson"`, or `"rmcorr"`.
-Default `"rmcorr"`.}
+\item{analysis}{One of \code{"association"}, \code{"pearson"}, or \code{"rmcorr"}.
+Default \code{"rmcorr"}.}
 
-\item{type}{One of `"original"` or `"fitted"`.}
+\item{type}{One of \code{"original"} or \code{"fitted"}.}
 
-\item{separate_groups}{Logical. If `TRUE` and a group column is still present
+\item{separate_groups}{Logical. If \code{TRUE} and a group column is still present
 after matching, analyses are run separately within each group.}
 
 \item{lag_by}{Optional character vector of metadata columns defining the lagging
-units for `x`.}
+units for \code{x}.}
 
-\item{lag_mode}{One of `"within_sorted"` or `"raw_order"`.}
+\item{lag_mode}{One of \code{"within_sorted"} or \code{"raw_order"}.}
 
 \item{match_by}{Optional character vector of metadata columns used to match
-  rows between `x` and `y`.
+rows between \code{x} and \code{y}.
 
-  If `NULL`, the function chooses matching columns automatically from the
-  shared metadata in the stored experimental designs.
+If \code{NULL}, the function chooses matching columns automatically from the
+shared metadata in the stored experimental designs.
 
-  If `match_by` is provided, it is used exactly as supplied for matching, and
-  no additional columns such as time, group, id, or replicate_id are added
-  automatically.
+If \code{match_by} is provided, it is used exactly as supplied for matching, and
+no additional columns such as time, group, id, or replicate_id are added
+automatically.
 
-  This means that if the user wants grouping or repeated-measures structure
-  to be preserved after matching, those variables must also be included in
-  `match_by` when needed.
+This means that if the user wants grouping or repeated-measures structure
+to be preserved after matching, those variables must also be included in
+\code{match_by} when needed.
 
-  For example:
-  - if `separate_groups = TRUE`, the grouping variable should usually be part
-  of `match_by`
-  - if `analysis = "association"` and a mixed model with `(1|id)` is desired,
-    the subject identifier should usually be part of `match_by`
-  - if `analysis = "rmcorr"`, the subject identifier must be part of
-    `match_by`}
+For example:
+\itemize{
+\item if \code{separate_groups = TRUE}, the grouping variable should usually be part
+of \code{match_by}
+\item if \code{analysis = "association"} and a mixed model with \code{(1|id)} is desired,
+the subject identifier should usually be part of \code{match_by}
+\item if \code{analysis = "rmcorr"}, the subject identifier must be part of
+\code{match_by}
+}}
 
-\item{lmer.df}{Denominator degrees-of-freedom method passed to `emmeans` for
-mixed models in `analysis = "association"`.}
+\item{lmer.df}{Denominator degrees-of-freedom method passed to \code{emmeans} for
+mixed models in \code{analysis = "association"}.}
 
-\item{return_models}{Logical. If `TRUE`, fitted objects / test objects are returned.}
+\item{return_models}{Logical. If \code{TRUE}, fitted objects / test objects are returned.}
 
-\item{return_data}{Logical. If `TRUE`, the matched analysis data are returned.}
+\item{return_data}{Logical. If \code{TRUE}, the matched analysis data are returned.}
 
-\item{verbose}{Logical. If `TRUE`, progress messages are printed.}
+\item{verbose}{Logical. If \code{TRUE}, progress messages are printed.}
 
-\item{...}{Additional arguments passed to `lm()` or `lmer()` in
-`analysis = "association"`.}
+\item{...}{Additional arguments passed to \code{lm()} or \code{lmer()} in
+\code{analysis = "association"}.}
 }
 \value{
 A list with at least:
 \describe{
-  \item{results}{A data.frame with one row per lag (and per group when relevant).}
+\item{results}{A data.frame with one row per lag (and per group when relevant).}
 }
 
-If `return_models = TRUE`, the output also contains:
+If \code{return_models = TRUE}, the output also contains:
 \describe{
-  \item{models}{A named list of fitted model objects or test objects.}
+\item{models}{A named list of fitted model objects or test objects.}
 }
 
-If `return_data = TRUE`, the output also contains:
+If \code{return_data = TRUE}, the output also contains:
 \describe{
-  \item{data}{The matched analysis data used for the analyses.}
+\item{data}{The matched analysis data used for the analyses.}
 }
 }
 \description{
-Compares two fitted `mixedcirc_fit` objects after creating lagged / lead
-versions of `x`.
+Compares two fitted \code{mixedcirc_fit} objects after creating lagged / lead
+versions of \code{x}.
 }
 \details{
 Three analysis modes are supported:
 \describe{
-  \item{`"association"`}{Directional lagged regression. The fitted model is
-  `measure.y ~ shifted measure.x`, or `measure.y ~ shifted measure.x + (1|id)`
-  when an `id` column is available after matching.}
-  \item{`"pearson"`}{Pearson correlation between `measure.y` and the shifted
-  `measure.x`.}
-  \item{`"rmcorr"`}{Repeated-measures correlation using `rmcorr::rmcorr()`.
-  This requires an `id` column to still be present after matching.}
+\item{\code{"association"}}{Directional lagged regression. The fitted model is
+\verb{measure.y ~ shifted measure.x}, or \verb{measure.y ~ shifted measure.x + (1|id)}
+when an \code{id} column is available after matching.}
+\item{\code{"pearson"}}{Pearson correlation between \code{measure.y} and the shifted
+\code{measure.x}.}
+\item{\code{"rmcorr"}}{Repeated-measures correlation using \code{rmcorr::rmcorr()}.
+This requires an \code{id} column to still be present after matching.}
 }
 
-The function uses the stored `exp_design` from each fitted object, including
-the feature-specific `measure`, `.used_in_fit`, and `.fitted` columns created
-by the updated `mixedcirc_detect()`.
+The function uses the stored \code{exp_design} from each fitted object, including
+the feature-specific \code{measure}, \code{.used_in_fit}, and \code{.fitted} columns created
+by \code{mixedcirc_detect()}.
 
-
-`analysis = "association"` is directional, not symmetric. It answers:
+\code{analysis = "association"} is directional, not symmetric. It answers:
 \preformatted{
 does shifted x predict y?
 }
@@ -125,13 +127,15 @@ is not equivalent to fitting
 x ~ shifted y
 }
 
-If the reverse direction is of interest, swap `x` and `y` and run the
+If the reverse direction is of interest, swap \code{x} and \code{y} and run the
 function again.
 
-Please note that the association analysis might fail for identical time series.
-
-`analysis = "pearson"` and `analysis = "rmcorr"` are correlation-style
+\code{analysis = "pearson"} and \code{analysis = "rmcorr"} are correlation-style
 summaries rather than directional regression models.
+
+Comparisons across several candidate lags are exploratory. The returned
+p-values are not adjusted across lags, and a lead-lag association does not
+establish causal direction.
 
 For RRBS fits, the signal is collapsed before analysis to:
 \preformatted{

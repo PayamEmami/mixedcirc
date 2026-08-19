@@ -18,48 +18,49 @@ mixedcirc_interpolate(
 )
 }
 \arguments{
-\item{x}{An object of class `mixedcirc_fit` or `mixedcirc_fit_list`.}
+\item{x}{An object of class \code{mixedcirc_fit} or \code{mixedcirc_fit_list}.}
 
-\item{period}{Rhythm period. Default `24`.}
+\item{period}{Rhythm period. When omitted, the period stored by
+\code{mixedcirc_detect()} is used; the fallback is \code{24} for older objects.}
 
-\item{min_time}{Minimum time used for interpolation. If `NULL`, taken from the
+\item{min_time}{Minimum time used for interpolation. If \code{NULL}, taken from the
 fitted object's stored experimental design.}
 
-\item{max_time}{Maximum time used for interpolation. If `NULL`, taken from the
+\item{max_time}{Maximum time used for interpolation. If \code{NULL}, taken from the
 fitted object's stored experimental design.}
 
-\item{npoints}{Number of interpolated time points to generate. Default `200`.}
+\item{npoints}{Number of interpolated time points to generate. Default \code{200}.}
 
 \item{fixed_values}{Named list of covariate values to force in prediction.
-For example `list(age = 50, batch = "B1")`.}
+For example \code{list(age = 50, batch = "B1")}.}
 
 \item{expand_vars}{Character vector of extra covariates to keep separate in
 the interpolated output.}
 
 \item{numeric_method}{How numeric nuisance covariates are fixed:
-`"mean"` or `"median"`. Default `"mean"`.}
+\code{"mean"} or \code{"median"}. Default \code{"mean"}.}
 
 \item{factor_method}{How nuisance factor covariates are handled:
-`"average_observed"`, `"average_equal"`, or `"reference"`.
-Default `"average_observed"`.}
+\code{"average_observed"}, \code{"average_equal"}, or \code{"reference"}.
+Default \code{"average_observed"}.}
 
-\item{add_expanded_label}{Logical. If `TRUE`, adds the `.expanded_label`
-column to the returned data. Default `TRUE`.}
+\item{add_expanded_label}{Logical. If \code{TRUE}, adds the \code{.expanded_label}
+column to the returned data. Default \code{TRUE}.}
 }
 \value{
-If `x` is a `mixedcirc_fit`, a `data.frame` containing the interpolated
-prediction grid together with a `Y.hat` column of fitted values.
+If \code{x} is a \code{mixedcirc_fit}, a \code{data.frame} containing the interpolated
+prediction grid together with a \code{Y.hat} column of fitted values.
 
-If `x` is a `mixedcirc_fit_list`, a single combined `data.frame` is returned,
-with one additional column named `feature` identifying the source feature.
+If \code{x} is a \code{mixedcirc_fit_list}, a single combined \code{data.frame} is returned,
+with one additional column named \code{feature} identifying the source feature.
 }
 \description{
-This function takes one or more fitted `mixedcirc` objects and generates
+This function takes one or more fitted \code{mixedcirc} objects and generates
 interpolated circadian predictions across a sequence of time points.
 }
 \details{
 This function uses the same interpolation and prediction rules as
-`mixedcirc_fit_plot()`.
+\code{mixedcirc_fit_plot()}.
 }
 \examples{
 data("circa_data")
@@ -75,6 +76,7 @@ results <- mixedcirc_detect(
   group = "group",
   id = "id",
   period = 24,
+  lm_method = "lm",
   verbose = TRUE
 )
 

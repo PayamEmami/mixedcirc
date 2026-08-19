@@ -2,7 +2,7 @@
 % Please edit documentation in R/mixedcirc_rrbs_voom.R
 \name{voomWithDreamWeights}
 \alias{voomWithDreamWeights}
-\title{Transform RNA-Seq Data Ready for Linear Mixed Modelling with \code{dream()}}
+\title{Transform RNA-seq counts for mixed-model analysis}
 \usage{
 voomWithDreamWeights(
   counts,
@@ -12,71 +12,76 @@ voomWithDreamWeights(
   normalize.method = "none",
   span = 0.5,
   weights = NULL,
+  prior.count = 0.5,
+  prior.count.for.weights = prior.count,
   plot = FALSE,
   save.plot = FALSE,
+  rescaleWeightsAfter = FALSE,
+  scaledByLib = FALSE,
+  priorWeightsAsCounts = FALSE,
   quiet = FALSE,
-  BPPARAM = SerialParam(),
+  BPPARAM = BiocParallel::SerialParam(),
   ...
 )
 }
 \arguments{
-\item{counts}{a numeric \code{matrix} containing raw counts, or an \code{ExpressionSet} containing raw counts, or a \code{DGEList} object. Counts must be non-negative and NAs are not permitted.}
+\item{counts}{A non-negative feature-by-sample count matrix,
+\code{Biobase::ExpressionSet}, or \code{edgeR::DGEList}.}
 
-\item{formula}{specifies variables for the linear (mixed) model.  Must only specify covariates, since the rows of exprObj are automatically used as a response. e.g.: \code{~ a + b + (1|c)}  Formulas with only fixed effects also work, and \code{lmFit()} followed by contrasts.fit() are run.}
+\item{formula}{A one-sided fixed- or mixed-effects formula.}
 
-\item{data}{\code{data.frame} with columns corresponding to formula}
+\item{data}{Sample metadata with one row per count-matrix column.}
 
-\item{lib.size}{numeric vector containing total library sizes for each sample.  Defaults to the normalized (effective) library sizes in \code{counts} if \code{counts} is a \code{DGEList} or to the columnwise count totals if \code{counts} is a matrix.}
+\item{lib.size}{Optional effective library sizes.}
 
-\item{normalize.method}{the microarray-style normalization method to be applied to the logCPM values (if any).  Choices are as for the \code{method} argument of \code{normalizeBetweenArrays} when the data is single-channel.  Any normalization factors found in \code{counts} will still be used even if \code{normalize.method="none"}.}
+\item{normalize.method}{Method passed to \code{limma::normalizeBetweenArrays()}.}
 
-\item{span}{width of the lowess smoothing window as a proportion.}
+\item{span}{LOWESS span in \verb{(0, 1]}, or \code{"auto"}.}
 
-\item{weights}{Can be a numeric matrix of individual weights of same dimensions as the \code{counts}, or a numeric vector of sample weights with length equal to \code{ncol(counts)}}
+\item{weights}{Optional feature-by-sample or sample-level prior weights.}
 
-\item{plot}{logical, should a plot of the mean-variance trend be displayed?}
+\item{prior.count}{Prior count used for the log transformation.}
 
-\item{save.plot}{logical, should the coordinates and line of the plot be saved in the output?}
+\item{prior.count.for.weights}{Prior count used when deriving weights from
+augmented counts.}
 
-\item{quiet}{suppress message, default FALSE}
+\item{plot}{Logical; draw the fitted mean-variance trend.}
 
-\item{BPPARAM}{parameters for parallel evaluation}
+\item{save.plot}{Logical; retain trend coordinates in the output.}
 
-\item{...}{other arguments are passed to \code{lmer}.}
+\item{rescaleWeightsAfter}{Logical; multiply the estimated precision weights
+by the normalized prior weights.}
+
+\item{scaledByLib}{Logical; scale the prior count by library size.}
+
+\item{priorWeightsAsCounts}{Logical; derive prior weights from augmented
+counts when no weights are supplied.}
+
+\item{quiet}{Logical; suppress model-fitting messages.}
+
+\item{BPPARAM}{A \code{BiocParallelParam} object.}
+
+\item{...}{Additional fitting arguments.}
 }
 \value{
-An \code{EList} object just like the result of \code{limma::voom()}
+A \code{limma::EList} containing logCPM values and precision weights.
 }
 \description{
-Transform count data to log2-counts per million (logCPM), estimate the mean-variance relationship and use this to compute appropriate observation-level weights. The data are then ready for linear mixed modelling with \code{dream()}.   This method is the same as \code{limma::voom()}, except that it allows random effects in the formula
-}
-\details{
-Adapted from \code{vomm()} in \code{limma} v3.40.2
+Converts counts to log2 counts-per-million and estimates observation-level
+precision weights from the fitted mean-variance trend. Unlike \code{limma::voom},
+the model formula may contain random effects.
 }
 \examples{
-library(edgeR)
-library(BiocParallel)
-
-data(varPartDEdata)
-
-# normalize RNA-seq counts
-dge = DGEList(counts = countMatrix)
-dge = calcNormFactors(dge)
-
-# specify formula with random effect for Individual
-form <- ~ Disease + (1|Individual)
-
-# compute observation weights
-vobj = voomWithDreamWeights( dge[1:20,], form, metadata)
-
-# fit dream model
-res = dream( vobj, form, metadata)
-res = eBayes(res)
-
-# extract results
-topTable(res, coef="Disease1", number=3)
+set.seed(3)
+metadata <- data.frame(subject = factor(rep(1:4, each = 3)))
+counts <- matrix(rpois(20 * nrow(metadata), lambda = 30), nrow = 20)
+vobj <- voomWithDreamWeights(
+  counts, ~ (1 | subject), metadata,
+  BPPARAM = BiocParallel::SerialParam(), quiet = TRUE
+)
+dim(vobj$weights)
 
 }
 \seealso{
-\code{limma::voom()}
+\code{\link[limma:voom]{limma::voom()}}
 }

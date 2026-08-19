@@ -1,54 +1,72 @@
-#' Represents the result of bootstrap testing for mixed circadian models.
+#' Bootstrap results from a mixedcirc model
 #'
-#' @slot results A data frame that contains bootstrap statistics (e.g., estimates, confidence intervals, p-values).
-#' @slot metadata A list containing metadata about the bootstrap procedure (e.g., number of simulations, confidence level).
-#' @slot original_model The original model object on which the bootstrap was performed.
-#' @import methods
-mixedcirc_boot <- setClass("mixedcirc_boot",
-                           slots = list(
-                             results = "data.frame",
-                             metadata = "list",
-                             original_model = "ANY"))
+#' @slot results A data frame containing bootstrap estimates, confidence
+#'   intervals, standard errors, and p-values.
+#' @slot metadata A list describing the bootstrap procedure.
+#' @slot original_model The `mixedcirc_fit` object that was bootstrapped.
+#'
+#' @exportClass mixedcirc_boot
+mixedcirc_boot <- methods::setClass(
+  "mixedcirc_boot",
+  slots = list(
+    results = "data.frame",
+    metadata = "list",
+    original_model = "ANY"
+  )
+)
 
-# Print method for mixedcirc_boot
-setMethod("show", "mixedcirc_boot", function(object) {
-  cat("mixedcirc_boot Object\n")
-  cat("----------------------\n")
-  cat("Bootstrap Results:\n")
-  print((object@results))
-  if (!is.null(object@metadata)) {
+#' @param object A `mixedcirc_boot` object.
+#' @rdname mixedcirc_boot-class
+#' @export
+methods::setMethod("show", "mixedcirc_boot", function(object) {
+  cat("mixedcirc bootstrap result\n")
+  cat("--------------------------\n")
+  print(object@results)
+  if (length(object@metadata)) {
     cat("\nMetadata:\n")
     print(object@metadata)
   }
   invisible(object)
 })
 
-# Summary method for mixedcirc_boot
-setMethod("summary", "mixedcirc_boot", function(object) {
-  cat("Summary of mixedcirc_boot Object\n")
-  cat("-------------------------------\n")
-  cat("Number of Simulations:", object@metadata$nsim, "\n")
-  cat("Confidence Level:", object@metadata$conf_level, "\n")
-  cat("\nSummary Statistics:\n")
-  print(object@results)
+#' @rdname mixedcirc_boot-class
+#' @export
+methods::setMethod("summary", "mixedcirc_boot", function(object, ...) {
+  cat("Summary of mixedcirc bootstrap result\n")
+  if (!is.null(object@metadata$nsim)) {
+    cat("Simulations:", object@metadata$nsim, "\n")
+  }
+  if (!is.null(object@metadata$conf_level)) {
+    cat("Confidence level:", object@metadata$conf_level, "\n")
+  }
+  print(object@results, ...)
   invisible(object)
 })
 
-# as.data.frame method for mixedcirc_boot
-setMethod("as.data.frame", "mixedcirc_boot", function(x, ...) {
+#' @param x A `mixedcirc_boot` object.
+#' @param row.names,optional Retained for compatibility with
+#'   [as.data.frame()]; currently ignored.
+#' @param ... Additional arguments; currently ignored by `as.data.frame()`.
+#' @rdname mixedcirc_boot-class
+#' @export
+methods::setMethod("as.data.frame", "mixedcirc_boot", function(x,
+                                                                row.names = NULL,
+                                                                optional = FALSE,
+                                                                ...) {
   x@results
 })
 
-
-#' Represents the result of model fitting on a single variable.
+#' Result from fitting one circadian feature
 #'
-#' @slot results A one-row data frame containing statistics from the fitted model.
-#' @slot fit The actual fitted model object.
-#' @slot exp_design The experimental design data frame created by mixedcirc_detect.
-#' @slot type The type of analysis performed, for example "RRBS".
-#' @slot call The function call used to create the object.
-#' @slot params A list of parameters used by other functions.
-mixedcirc_fit <- setClass(
+#' @slot results A one-row data frame containing estimates and test results.
+#' @slot fit The fitted `lm` or `lmerMod` model.
+#' @slot exp_design The experimental design created by `mixedcirc_detect()`.
+#' @slot type Analysis type, currently `"expression"` or `"RRBS"`.
+#' @slot call The call used to create the object.
+#' @slot params Additional parameters used by downstream methods.
+#'
+#' @exportClass mixedcirc_fit
+mixedcirc_fit <- methods::setClass(
   "mixedcirc_fit",
   slots = list(
     results = "data.frame",
@@ -59,123 +77,179 @@ mixedcirc_fit <- setClass(
     params = "list"
   )
 )
-#' Represents the result of model fitting on several variables.
+
+#' Results from fitting multiple circadian features
 #'
-#' @slot results A list of mixedcirc_fit
+#' @slot results A list of `mixedcirc_fit` objects.
 #'
-mixedcirc_fit_list <- setClass("mixedcirc_fit_list",
-                          slots = list(results = "list")
+#' @exportClass mixedcirc_fit_list
+mixedcirc_fit_list <- methods::setClass(
+  "mixedcirc_fit_list",
+  slots = list(results = "list")
 )
 
-#' Plots circadian rhythm
+#' Print a single-feature result
 #'
-#' A simple function for printing the mixedcirc_fit object
+#' @param x A `mixedcirc_fit` object.
+#' @param ... Additional arguments passed to [print()].
 #'
-#'
-#' @import stats
-#' @import multcomp
-#' @import doFuture
-#' @import future
-#' @import nlme
-#' @import future.apply
-#' @import lme4
-#' @import limma
-#' @import lmerTest
-#' @import foreach
-#' @import ggplot2
-#' @import ggsci
-
-print.mixedcirc_fit <- function(x) { print(x@results) }
-setMethod(f = "show",
-          signature = "mixedcirc_fit",
-          definition = function(object) { print(x@results) } )
-
-
-
-#' Prints circadian rhythm
-#'
-#' A simple function for printing the mixedcirc_fit object
-#'
-#'
-#' @import stats
-#' @import multcomp
-#' @import doFuture
-#' @import future
-#' @import nlme
-#' @import future.apply
-#' @import lme4
-#' @import limma
-#' @import lmerTest
-#' @import foreach
-#' @import ggplot2
-#' @import ggsci
-
-setMethod(f = "show",
-          signature = "mixedcirc_fit",
-          definition = function(object) { print(object@results) }
-)
-
-#' @export
-print.mixedcirc_fit_list <- function(x, ...) {
-	cat('Total number of variables: ', length(x@results))
-}
+#' @return `x`, invisibly.
 #' @export
 print.mixedcirc_fit <- function(x, ...) {
-	print(x@results, ...)
+  print(x@results, ...)
+  invisible(x)
 }
 
-setMethod(show, "mixedcirc_integration", function(object) {
-  cat('Total number of Omics: ', length(object@partial), '! Use partial or average scores in mixedcirc_detect!')
+#' @param object A `mixedcirc_fit` object.
+#' @rdname mixedcirc_fit-class
+#' @export
+methods::setMethod("show", "mixedcirc_fit", function(object) {
+  print(object@results)
+  invisible(object)
 })
+
+#' Print a multi-feature result
+#'
+#' @param x A `mixedcirc_fit_list` object.
+#' @param ... Additional arguments; currently ignored.
+#'
+#' @return `x`, invisibly.
+#' @export
+print.mixedcirc_fit_list <- function(x, ...) {
+  cat("Total number of variables:", length(x@results), "\n")
+  invisible(x)
+}
+
+#' @param object A `mixedcirc_fit_list` object.
+#' @rdname mixedcirc_fit_list-class
+#' @export
+methods::setMethod("show", "mixedcirc_fit_list", function(object) {
+  print.mixedcirc_fit_list(object)
+})
+
+#' Experimental integration result for multiple data sets
+#'
+#' @slot partial A named list of sample score matrices, one per data block.
+#' @slot average A matrix of average scores across blocks.
+#' @slot loadings A named list of feature loading matrices, one per data block.
+#' @slot model The fitted SGCCA model.
+#'
+#' @details
+#' This class and the integration workflow that creates it are experimental.
+#'
+#' @exportClass mixedcirc_integration
+mixedcirc_integration <- methods::setClass(
+  "mixedcirc_integration",
+  slots = list(
+    partial = "list",
+    average = "matrix",
+    loadings = "list",
+    model = "ANY"
+  )
+)
+
+#' @param object A `mixedcirc_integration` object.
+#' @rdname mixedcirc_integration-class
+#' @export
+methods::setMethod("show", "mixedcirc_integration", function(object) {
+  cat("Experimental mixedcirc integration result\n")
+  cat("Omics blocks:", length(object@partial), "\n")
+  cat("Use for exploratory analysis; validate learned scores on independent data.\n")
+  invisible(object)
+})
+
+#' Print an experimental integration result
+#'
+#' @param x A `mixedcirc_integration` object.
+#' @param ... Additional arguments; currently ignored.
+#'
+#' @return `x`, invisibly.
 #' @export
 print.mixedcirc_integration <- function(x, ...) {
-	cat('Total number of Omics: ', length(object@partial),'! Use partial or average scores in mixedcirc_detect!')
+  methods::show(x)
+  invisible(x)
 }
 
-setMethod(f = "show",
-          signature = "mixedcirc_fit_list",
-          definition = function(object) { cat("Total number of variables: ", length(object@results)) }
-)
+#' Subset mixedcirc result objects
+#'
+#' `[` on a `mixedcirc_fit_list` returns a single `mixedcirc_fit` when exactly
+#' one feature is selected, preserving the package's original API. Selecting
+#' multiple features returns another `mixedcirc_fit_list`. `[[` always extracts
+#' one `mixedcirc_fit`. `[` on a `mixedcirc_fit` subsets its results data frame.
+#'
+#' @param x A `mixedcirc_fit_list` or `mixedcirc_fit` object.
+#' @param i Row or feature indices.
+#' @param j Column indices for a single-feature results data frame.
+#' @param ... Additional subscripting arguments.
+#' @param drop Logical; passed to data-frame subsetting for `mixedcirc_fit`.
+#'
+#' @return A `mixedcirc_fit_list`, `mixedcirc_fit`, or data frame, depending on
+#'   the method used.
+#' @name mixedcirc-subset
+NULL
 
-setMethod(f = `[`,
-          signature = "mixedcirc_fit_list",
-          definition = function(x, i = NULL, j = NULL) { x@results[[i]] }
-)
-
-setMethod(f = `[[`,
-          signature = "mixedcirc_fit_list",
-          definition = function(x, i = NULL, j = NULL) { x@results[[i]] }
-)
-
-setMethod(f = `[`,
-          signature = "mixedcirc_fit",
-          definition = function(x, i = NULL, j = NULL) { x@results[j] }
-)
-
-setMethod(f = "length",
-          signature = "mixedcirc_fit_list",
-          definition = function(x) { length(x@results) }
-)
-
-setGeneric(name = "plot",
-           def = function(x, y, ...) standardGeneric("plot")
-)
-
+#' @rdname mixedcirc-subset
 #' @export
-setMethod(f = "plot",
-          signature = c(x = "mixedcirc_fit", y = "missing"),
-          definition = function(x, y, ...){ mixedcirc_fit_plot(x, ...) }
-         )
+methods::setMethod(
+  "[",
+  signature(x = "mixedcirc_fit_list"),
+  function(x, i, j, ..., drop = FALSE) {
+    if (missing(i)) {
+      i <- seq_along(x@results)
+    }
+    selected <- x@results[i]
+    if (length(selected) == 1L) {
+      return(selected[[1L]])
+    }
+    methods::new("mixedcirc_fit_list", results = selected)
+  }
+)
 
-#' Represents the result of integration on multiple data sets
+#' @rdname mixedcirc-subset
+#' @export
+methods::setMethod(
+  "[[",
+  signature(x = "mixedcirc_fit_list"),
+  function(x, i, j, ...) {
+    if (missing(i)) {
+      stop("i must identify one fitted feature", call. = FALSE)
+    }
+    x@results[[i]]
+  }
+)
+
+#' @rdname mixedcirc-subset
+#' @export
+methods::setMethod(
+  "[",
+  signature(x = "mixedcirc_fit"),
+  function(x, i, j, ..., drop = FALSE) {
+    if (missing(i)) i <- seq_len(nrow(x@results))
+    if (missing(j)) j <- seq_len(ncol(x@results))
+    x@results[i, j, ..., drop = drop]
+  }
+)
+
+#' Number of fitted features
 #'
-#' @slot partial A list of partial scores for individual data sets
-#' @slot average A matrix of average scores
-#' @slot loadings A List of loadings for individual data sets
-#' @slot model The original model fitted
+#' @param x A `mixedcirc_fit_list` object.
 #'
-mixedcirc_integration <- setClass('mixedcirc_integration',
-	slots = list(partial = 'list',
-		average = 'matrix',
-		loadings = 'list', model = 'ANY')
+#' @return An integer count.
+#' @export
+methods::setMethod("length", "mixedcirc_fit_list", function(x) {
+  length(x@results)
+})
+
+#' Plot a fitted circadian feature
+#'
+#' @param x A `mixedcirc_fit` object.
+#' @param y Missing; present for compatibility with the `plot` generic.
+#' @param ... Arguments passed to [mixedcirc_fit_plot()].
+#'
+#' @return The ggplot object returned by [mixedcirc_fit_plot()].
+#' @export
+methods::setMethod(
+  "plot",
+  signature(x = "mixedcirc_fit", y = "missing"),
+  function(x, y, ...) mixedcirc_fit_plot(x, ...)
 )

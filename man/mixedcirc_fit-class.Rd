@@ -4,23 +4,30 @@
 \name{mixedcirc_fit-class}
 \alias{mixedcirc_fit-class}
 \alias{mixedcirc_fit}
-\title{Represents the result of model fitting on a single variable.}
+\alias{show,mixedcirc_fit-method}
+\title{Result from fitting one circadian feature}
+\usage{
+\S4method{show}{mixedcirc_fit}(object)
+}
+\arguments{
+\item{object}{A \code{mixedcirc_fit} object.}
+}
 \description{
-Represents the result of model fitting on a single variable.
+Result from fitting one circadian feature
 }
 \section{Slots}{
 
 \describe{
-\item{\code{results}}{A one-row data frame containing statistics from the fitted model.}
+\item{\code{results}}{A one-row data frame containing estimates and test results.}
 
-\item{\code{fit}}{The actual fitted model object.}
+\item{\code{fit}}{The fitted \code{lm} or \code{lmerMod} model.}
 
-\item{\code{exp_design}}{The experimental design data frame created by mixedcirc_detect.}
+\item{\code{exp_design}}{The experimental design created by \code{mixedcirc_detect()}.}
 
-\item{\code{type}}{The type of analysis performed, for example "RRBS".}
+\item{\code{type}}{Analysis type, currently \code{"expression"} or \code{"RRBS"}.}
 
-\item{\code{call}}{The function call used to create the object.}
+\item{\code{call}}{The call used to create the object.}
 
-\item{\code{params}}{A list of parameters used by other functions.}
+\item{\code{params}}{Additional parameters used by downstream methods.}
 }}
 

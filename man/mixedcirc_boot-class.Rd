@@ -4,17 +4,38 @@
 \name{mixedcirc_boot-class}
 \alias{mixedcirc_boot-class}
 \alias{mixedcirc_boot}
-\title{Represents the result of bootstrap testing for mixed circadian models.}
+\alias{show,mixedcirc_boot-method}
+\alias{summary,mixedcirc_boot-method}
+\alias{as.data.frame,mixedcirc_boot-method}
+\title{Bootstrap results from a mixedcirc model}
+\usage{
+\S4method{show}{mixedcirc_boot}(object)
+
+\S4method{summary}{mixedcirc_boot}(object, ...)
+
+\S4method{as.data.frame}{mixedcirc_boot}(x, row.names = NULL, optional = FALSE, ...)
+}
+\arguments{
+\item{object}{A \code{mixedcirc_boot} object.}
+
+\item{...}{Additional arguments; currently ignored by \code{as.data.frame()}.}
+
+\item{x}{A \code{mixedcirc_boot} object.}
+
+\item{row.names, optional}{Retained for compatibility with
+\code{\link[=as.data.frame]{as.data.frame()}}; currently ignored.}
+}
 \description{
-Represents the result of bootstrap testing for mixed circadian models.
+Bootstrap results from a mixedcirc model
 }
 \section{Slots}{
 
 \describe{
-\item{\code{results}}{A data frame that contains bootstrap statistics (e.g., estimates, confidence intervals, p-values).}
+\item{\code{results}}{A data frame containing bootstrap estimates, confidence
+intervals, standard errors, and p-values.}
 
-\item{\code{metadata}}{A list containing metadata about the bootstrap procedure (e.g., number of simulations, confidence level).}
+\item{\code{metadata}}{A list describing the bootstrap procedure.}
 
-\item{\code{original_model}}{The original model object on which the bootstrap was performed.}
+\item{\code{original_model}}{The \code{mixedcirc_fit} object that was bootstrapped.}
 }}
 

@@ -4,13 +4,20 @@
 \name{mixedcirc_fit_list-class}
 \alias{mixedcirc_fit_list-class}
 \alias{mixedcirc_fit_list}
-\title{Represents the result of model fitting on several variables.}
+\alias{show,mixedcirc_fit_list-method}
+\title{Results from fitting multiple circadian features}
+\usage{
+\S4method{show}{mixedcirc_fit_list}(object)
+}
+\arguments{
+\item{object}{A \code{mixedcirc_fit_list} object.}
+}
 \description{
-Represents the result of model fitting on several variables.
+Results from fitting multiple circadian features
 }
 \section{Slots}{
 
 \describe{
-\item{\code{results}}{A list of mixedcirc_fit}
+\item{\code{results}}{A list of \code{mixedcirc_fit} objects.}
 }}
 

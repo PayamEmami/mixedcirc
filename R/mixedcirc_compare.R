@@ -16,6 +16,8 @@
 #' \preformatted{
 #' x_lead1[t] = x[t+1]
 #' }
+#' Lags are counted in positions after ordering by time; they are not elapsed
+#' time units. Check the sampling schedule before interpreting a lag in hours.
 #'
 #' For RRBS fits, the doubled row structure is preserved. The shift is applied at
 #' the biological observation level, while keeping the paired `scaler = 1` and
@@ -23,7 +25,7 @@
 #' biological observation are shifted together.
 #'
 #' @param x A `mixedcirc_fit` object.
-#' @param lags Integer vector of lags / leads to create.
+#' @param lags Integer vector of lags or leads, measured in observation steps.
 #' @param lag_by Optional character vector of column names in `x@exp_design`
 #'   defining the grouping structure used before shifting. If `NULL`, the
 #'   function uses the original `id` column when available, otherwise the
@@ -39,7 +41,6 @@
 #' A data.frame containing the experimental design, the selected signal column,
 #' and one new column per requested lag/lead.
 #'
-#' @import methods
 #' @export
 mixedcirc_add_lag <- function(x,
                               lags = 1,
@@ -56,7 +57,8 @@ mixedcirc_add_lag <- function(x,
   type <- match.arg(type, c("original", "fitted"))
   lag_mode <- match.arg(lag_mode, c("within_sorted", "raw_order"))
 
-  if (length(lags) == 0 || any(is.na(lags)) || any(lags %% 1 != 0)) {
+  if (!is.numeric(lags) || length(lags) == 0L || any(!is.finite(lags)) ||
+      any(lags %% 1 != 0)) {
     stop("lags must be a vector of integers")
   }
 
@@ -64,6 +66,9 @@ mixedcirc_add_lag <- function(x,
 
   if (!is.character(value_name) || length(value_name) != 1 || is.na(value_name) || value_name == "") {
     stop("value_name must be a single non-empty character string")
+  }
+  if (!is.logical(keep_order) || length(keep_order) != 1L || is.na(keep_order)) {
+    stop("keep_order must be TRUE or FALSE")
   }
 
   .get_call_arg_name <- function(object, arg_name) {
@@ -85,9 +90,10 @@ mixedcirc_add_lag <- function(x,
     exp_design <- object@exp_design
     params <- if ("params" %in% methods::slotNames(object)) object@params else list()
 
-    time_var <- .get_call_arg_name(object, "time")
-    group_var_requested <- .get_call_arg_name(object, "group")
-    id_var <- .get_call_arg_name(object, "id")
+    time_var <- if (!is.null(params$time)) params$time else .get_call_arg_name(object, "time")
+    group_var_requested <- if (!is.null(params$group)) params$group else .get_call_arg_name(object, "group")
+    id_var <- if (!is.null(params$id)) params$id else .get_call_arg_name(object, "id")
+    replicate_var <- if (!is.null(params$replicate_id)) params$replicate_id else NULL
 
     multiple_groups <- isTRUE(params$multiple_groups)
     rrbs <- isTRUE(params$RRBS)
@@ -123,6 +129,7 @@ mixedcirc_add_lag <- function(x,
       time_var = time_var,
       group_var = group_var,
       id_var = id_var,
+      replicate_var = replicate_var,
       RRBS = rrbs
     )
   }
@@ -131,10 +138,10 @@ mixedcirc_add_lag <- function(x,
     dat <- object@exp_design
 
     if (!".used_in_fit" %in% names(dat)) {
-      stop("object@exp_design must contain .used_in_fit. Please refit with the updated mixedcirc_detect().")
+      stop("object@exp_design does not contain the row-use indicator required for lagging")
     }
 
-    dat <- dat[isTRUE(dat$.used_in_fit) | dat$.used_in_fit %in% TRUE, , drop = FALSE]
+    dat <- dat[dat$.used_in_fit %in% TRUE, , drop = FALSE]
 
     if (type == "original") {
       if (!"measure" %in% names(dat)) {
@@ -192,7 +199,7 @@ mixedcirc_add_lag <- function(x,
     }
   }
 
-  if (!is.character(lag_by)) {
+  if (!is.character(lag_by) || anyNA(lag_by) || any(lag_by == "")) {
     stop("lag_by must be NULL or a character vector of column names")
   }
 
@@ -258,12 +265,34 @@ mixedcirc_add_lag <- function(x,
   }
 
   base_group_cols <- lag_by
-  obs_key_cols <- setdiff(names(dat), c(value_name, "scaler", ".orig_order"))
+  signal_and_internal <- c(
+    value_name, "measure", ".fitted", ".residual", ".weight",
+    ".used_in_fit", "scaler", ".orig_order"
+  )
+  obs_key_cols <- unique(c(
+    spec$id_var,
+    spec$group_var,
+    spec$time_var,
+    spec$replicate_var
+  ))
+  obs_key_cols <- obs_key_cols[
+    !is.na(obs_key_cols) & nzchar(obs_key_cols) & obs_key_cols %in% names(dat)
+  ]
+  if (length(obs_key_cols) == 0L) {
+    obs_key_cols <- setdiff(names(dat), signal_and_internal)
+  }
+  if (length(obs_key_cols) == 0L) {
+    stop("Could not identify metadata columns for pairing RRBS rows.")
+  }
 
   dat$.row_id_internal <- seq_len(nrow(dat))
   dat$.pair_id_internal <- ave(
     seq_len(nrow(dat)),
-    interaction(dat[, obs_key_cols, drop = FALSE], drop = TRUE, lex.order = TRUE),
+    interaction(
+      dat[, c(obs_key_cols, "scaler"), drop = FALSE],
+      drop = TRUE,
+      lex.order = TRUE
+    ),
     FUN = seq_along
   )
 
@@ -377,11 +406,12 @@ mixedcirc_add_lag <- function(x,
 #'
 #' The function uses the stored `exp_design` from each fitted object, including
 #' the feature-specific `measure`, `.used_in_fit`, and `.fitted` columns created
-#' by the updated `mixedcirc_detect()`.
+#' by `mixedcirc_detect()`.
 #'
 #' @param x A `mixedcirc_fit` object providing the lagged predictor signal.
 #' @param y A `mixedcirc_fit` object providing the response signal.
-#' @param lags Integer vector of lags / leads to evaluate.
+#' @param lags Integer vector of lags or leads to evaluate. Values count
+#'   positions in the time-ordered observations, not elapsed time units.
 #' @param analysis One of `"association"`, `"pearson"`, or `"rmcorr"`.
 #'   Default `"rmcorr"`.
 #' @param type One of `"original"` or `"fitted"`.
@@ -453,23 +483,18 @@ mixedcirc_add_lag <- function(x,
 #' If the reverse direction is of interest, swap `x` and `y` and run the
 #' function again.
 #'
-#' Please note that the association analysis might fail for identical time series.
-#'
 #' `analysis = "pearson"` and `analysis = "rmcorr"` are correlation-style
 #' summaries rather than directional regression models.
+#'
+#' Comparisons across several candidate lags are exploratory. The returned
+#' p-values are not adjusted across lags, and a lead-lag association does not
+#' establish causal direction.
 #'
 #' For RRBS fits, the signal is collapsed before analysis to:
 #' \preformatted{
 #' scaler = 1 - scaler = 0
 #' }
 #'
-#' @import stats
-#' @import methods
-#' @import emmeans
-#' @import performance
-#' @import MuMIn
-#' @import rmcorr
-#' @import lme4
 #' @export
 mixedcirc_compare <- function(x,
                               y,
@@ -491,12 +516,28 @@ mixedcirc_compare <- function(x,
   if (!is(x, "mixedcirc_fit")) stop("x must be a mixedcirc_fit object")
   if (!is(y, "mixedcirc_fit")) stop("y must be a mixedcirc_fit object")
 
+  logical_args <- list(
+    separate_groups = separate_groups,
+    return_models = return_models,
+    return_data = return_data,
+    verbose = verbose
+  )
+  bad_logical <- !vapply(
+    logical_args,
+    function(z) is.logical(z) && length(z) == 1L && !is.na(z),
+    logical(1)
+  )
+  if (any(bad_logical)) {
+    stop(names(logical_args)[which(bad_logical)[1L]], " must be TRUE or FALSE")
+  }
+
   analysis <- match.arg(analysis, c("association", "pearson", "rmcorr"))
   type <- match.arg(type, c("original", "fitted"))
   lag_mode <- match.arg(lag_mode, c("within_sorted", "raw_order"))
   lmer.df <- match.arg(lmer.df, c("Satterthwaite", "Kenward-Roger"))
 
-  if (length(lags) == 0 || any(is.na(lags)) || any(lags %% 1 != 0)) {
+  if (!is.numeric(lags) || length(lags) == 0L || any(!is.finite(lags)) ||
+      any(lags %% 1 != 0)) {
     stop("lags must be a vector of integers")
   }
   lags <- sort(unique(as.integer(lags)))
@@ -514,10 +555,10 @@ mixedcirc_compare <- function(x,
     exp_design <- object@exp_design
     params <- if ("params" %in% methods::slotNames(object)) object@params else list()
 
-    time_var <- .get_call_arg_name(object, "time")
-    group_var_requested <- .get_call_arg_name(object, "group")
-    id_var <- .get_call_arg_name(object, "id")
-    replicate_var <- .get_call_arg_name(object, "replicate_id")
+    time_var <- if (!is.null(params$time)) params$time else .get_call_arg_name(object, "time")
+    group_var_requested <- if (!is.null(params$group)) params$group else .get_call_arg_name(object, "group")
+    id_var <- if (!is.null(params$id)) params$id else .get_call_arg_name(object, "id")
+    replicate_var <- if (!is.null(params$replicate_id)) params$replicate_id else .get_call_arg_name(object, "replicate_id")
 
     multiple_groups <- isTRUE(params$multiple_groups)
     rrbs <- isTRUE(params$RRBS)
@@ -570,6 +611,10 @@ mixedcirc_compare <- function(x,
                                         value_col = "value",
                                         scaler_col = "scaler") {
 
+    if (!all(c(value_col, scaler_col) %in% names(dat))) {
+      stop("RRBS data are missing the requested signal or scaler columns.")
+    }
+
     dat1 <- dat[dat[[scaler_col]] == 1, , drop = FALSE]
     dat0 <- dat[dat[[scaler_col]] == 0, , drop = FALSE]
 
@@ -577,7 +622,16 @@ mixedcirc_compare <- function(x,
       stop("For RRBS modeling, both scaler == 1 and scaler == 0 must exist.")
     }
 
-    key_cols <- setdiff(names(dat), c(value_col, scaler_col))
+    key_cols <- setdiff(
+      names(dat),
+      c(
+        value_col, scaler_col, "measure", ".fitted", ".residual",
+        ".weight", ".used_in_fit"
+      )
+    )
+    if (length(key_cols) == 0L) {
+      stop("Could not identify metadata columns for pairing RRBS rows.")
+    }
 
     dat1$.pair_id <- ave(
       seq_len(nrow(dat1)),
@@ -602,7 +656,10 @@ mixedcirc_compare <- function(x,
     )
 
     out <- merged[, key_cols, drop = FALSE]
-    out[[value_col]] <- merged[[paste0(value_col, ".1")]] - merged[[paste0(value_col, ".0")]]
+    for (signal_col in value_col) {
+      out[[signal_col]] <- merged[[paste0(signal_col, ".1")]] -
+        merged[[paste0(signal_col, ".0")]]
+    }
     out
   }
 
@@ -611,7 +668,7 @@ mixedcirc_compare <- function(x,
     spec <- .get_spec(object)
 
     if (!".used_in_fit" %in% names(dat)) {
-      stop("object@exp_design must contain .used_in_fit. Please refit with the updated mixedcirc_detect().")
+      stop("object@exp_design does not contain the row-use indicator required for comparison")
     }
 
     dat <- dat[dat$.used_in_fit %in% TRUE, , drop = FALSE]
@@ -824,6 +881,10 @@ mixedcirc_compare <- function(x,
   }
 
   .fit_one_rmcorr <- function(dat_sub, pred_name, id_var) {
+    if (is.null(id_var) || !id_var %in% names(dat_sub)) {
+      return(list(model = NULL, stats = NULL, n.used = nrow(dat_sub), method = "rmcorr", note = "id column is required for rmcorr"))
+    }
+
     dat_sub <- dat_sub[!is.na(dat_sub[[pred_name]]) &
                          !is.na(dat_sub$measure.y) &
                          !is.na(dat_sub[[id_var]]), , drop = FALSE]
@@ -834,10 +895,6 @@ mixedcirc_compare <- function(x,
 
     if (nrow(dat_sub) < 3) {
       return(list(model = NULL, stats = NULL, n.used = nrow(dat_sub), method = "rmcorr", note = "Too few complete observations"))
-    }
-
-    if (is.null(id_var) || !id_var %in% names(dat_sub)) {
-      return(list(model = NULL, stats = NULL, n.used = nrow(dat_sub), method = "rmcorr", note = "id column is required for rmcorr"))
     }
 
     if (length(unique(dat_sub[[id_var]])) < 3) {
@@ -926,11 +983,25 @@ mixedcirc_compare <- function(x,
     value_name = "measure.x",
     keep_order = TRUE
   )
+  if (spec_x$RRBS && "scaler" %in% names(x_lagged)) {
+    x_signal_columns <- c(
+      "measure.x",
+      vapply(lags, function(k) .shift_name("measure.x", k), character(1))
+    )
+    x_lagged <- .collapse_rrbs_difference(
+      x_lagged,
+      value_col = x_signal_columns,
+      scaler_col = "scaler"
+    )
+  }
 
   if (is.null(match_by)) {
     match_by_eff <- .default_match_by(x_lagged, y_signal, spec_x, spec_y)
   } else {
-    if (!is.character(match_by)) stop("match_by must be NULL or a character vector")
+    if (!is.character(match_by) || length(match_by) == 0L ||
+        anyNA(match_by) || any(match_by == "")) {
+      stop("match_by must be NULL or a non-empty character vector")
+    }
     match_by_eff <- unique(match_by)
   }
 
@@ -945,8 +1016,7 @@ mixedcirc_compare <- function(x,
          paste(missing_match_y, collapse = ", "))
   }
 
-  # IMPORTANT:
-  # match_by is used exactly as supplied. No extra columns are added automatically.
+  # Use match_by exactly as supplied; no additional keys are inserted here.
   x_keep <- unique(c(
     match_by_eff,
     "measure.x",
@@ -956,6 +1026,16 @@ mixedcirc_compare <- function(x,
 
   y_keep <- unique(c(match_by_eff, "measure.y"))
   y_keep <- intersect(y_keep, names(y_signal))
+
+  duplicate_x <- duplicated(x_lagged[, match_by_eff, drop = FALSE])
+  duplicate_y <- duplicated(y_signal[, match_by_eff, drop = FALSE])
+  if (any(duplicate_x) || any(duplicate_y)) {
+    stop(
+      "match_by does not uniquely identify observations in both signals; ",
+      "include the relevant time, group, subject, or replicate columns",
+      call. = FALSE
+    )
+  }
 
   data_for_model <- merge(
     x_lagged[, x_keep, drop = FALSE],

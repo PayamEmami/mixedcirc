@@ -4,5 +4,8 @@
 ^\.Rproj\.user$
 ^data-raw$
 ^LICENSE\.md$
+^assets$
 ^\.positai$
 ^\.claude$
+^\.github$
+^_pkgdown\.yml$

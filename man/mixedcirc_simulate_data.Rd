@@ -23,25 +23,26 @@ mixedcirc_simulate_data(
   subject_random_intercept_sd = 0.6,
   residual_sd = 0.8,
   coverage_range = c(15, 80),
-  cross_lag_spec = NULL
+  cross_lag_spec = NULL,
+  period = 24
 )
 }
 \arguments{
-\item{n_subjects_per_group}{Number of subjects per group. Default `8`.}
+\item{n_subjects_per_group}{Number of subjects per group. Default \code{8}.}
 
-\item{n_timepoints}{Number of repeated time points per subject. Default `6`.}
+\item{n_timepoints}{Number of repeated time points per subject. Default \code{6}.}
 
-\item{n_features}{Number of features to simulate. Default `20`.}
+\item{n_features}{Number of features to simulate. Default \code{20}.}
 
-\item{groups}{Character vector of group labels. Default `c("A")`.}
+\item{groups}{Character vector of group labels. Default \code{c("A")}.}
 
-\item{include_covariates}{Logical. If `TRUE`, subject-level covariates
-(`age`, `batch`) are simulated and added to the signal. Default `FALSE`.}
+\item{include_covariates}{Logical. If \code{TRUE}, subject-level covariates
+(\code{age}, \code{batch}) are simulated and added to the signal. Default \code{FALSE}.}
 
-\item{rrbs}{Logical. If `TRUE`, simulate RRBS-like methylated/unmethylated
-counts. If `FALSE`, simulate continuous data. Default `FALSE`.}
+\item{rrbs}{Logical. If \code{TRUE}, simulate RRBS-like methylated/unmethylated
+counts. If \code{FALSE}, simulate continuous data. Default \code{FALSE}.}
 
-\item{seed}{Random seed. Default `123`.}
+\item{seed}{Random seed. Default \code{123}.}
 
 \item{age_mean}{Mean age for the first group when covariates are simulated.}
 
@@ -52,54 +53,64 @@ counts. If `FALSE`, simulate continuous data. Default `FALSE`.}
 \item{batch_levels}{Character vector of batch levels.}
 
 \item{age_beta}{Default age effect used when covariates are included.
-If `NULL`, a default value is chosen depending on `rrbs`.}
+If \code{NULL}, a default value is chosen depending on \code{rrbs}.}
 
 \item{batch_effects}{Named numeric vector of batch effects.
-If `NULL`, defaults are chosen depending on `rrbs`.}
+If \code{NULL}, defaults are chosen depending on \code{rrbs}.}
 
 \item{age_beta_sd}{Standard deviation of feature-specific jitter added to
-`age_beta`. Default `0`.}
+\code{age_beta}. Default \code{0}.}
 
 \item{batch_effect_sd}{Standard deviation of feature-specific jitter added to
-each batch effect. Default `0`.}
+each batch effect. Default \code{0}.}
 
 \item{subject_random_intercept_sd}{Standard deviation of subject-specific
-random intercepts. Default `0.6`.}
+random intercepts. Default \code{0.6}.}
 
 \item{residual_sd}{Residual standard deviation for continuous data.
-Default `0.8`.}
+Default \code{0.8}.}
 
 \item{coverage_range}{Numeric vector of length 2 giving the minimum and
-maximum sequencing depth for RRBS simulation. Default `c(15, 80)`.}
+maximum sequencing depth for RRBS simulation. Default \code{c(15, 80)}.}
 
 \item{cross_lag_spec}{Optional list describing copied lagged relationships
-  between features. Each element must itself be a list with:
-  \describe{
-    \item{from}{Source feature index or feature name.}
-    \item{to}{Target feature index or feature name.}
-    \item{lag}{Integer lag, or a named integer vector with one lag per group.}
-    \item{beta}{Numeric scaling factor applied to the copied lagged source.
-    Default behavior is multiplication of the shifted source by `beta`.}
-  }
+between features. Each element must itself be a list with:
+\describe{
+\item{from}{Source feature index or feature name.}
+\item{to}{Target feature index or feature name.}
+\item{lag}{Integer lag in observation steps, or a named integer vector
+with one lag per group.}
+\item{beta}{Numeric scaling factor applied to the copied lagged source.
+Default behavior is multiplication of the shifted source by \code{beta}.}
+}
 
-  Positive lag means that the target at time \(t\) is copied from the source
-  at time \(t - lag\). Negative lag means copying from the future source value.
+Positive lag means that the target at one observation is copied from an
+earlier source observation within the same subject; a negative lag uses a
+later source observation. Lags refer to positions in the time-ordered data,
+not elapsed time units.
 
-  In this implementation, the target feature is constructed from the observed
-  source feature:
-  \itemize{
-    \item for continuous data, after residual noise has been added
-    \item for RRBS data, after methylated / unmethylated counts have been generated
-  }
-  Therefore, `lag = 0` and `beta = 1` produce an exact observed-data copy.}
+In this implementation, the target feature is constructed from the observed
+source feature:
+\itemize{
+\item for continuous data, after residual noise has been added
+\item for RRBS data, after methylated / unmethylated counts have been generated
+}
+Therefore, \code{lag = 0} and \code{beta = 1} produce an exact observed-data copy.}
+
+\item{period}{Positive rhythm period used for the time grid and simulated
+harmonic signal. Default \code{24}.}
 }
 \value{
 A list with:
 \describe{
-  \item{data_input}{Simulated feature matrix or data.frame.}
-  \item{meta_input}{Sample-level metadata.}
-  \item{obs_weights}{Observation weights for RRBS data, otherwise `NULL`.}
-  \item{truth}{A data.frame describing the true generating parameters.}
+\item{data_input}{Simulated feature matrix or data.frame.}
+\item{meta_input}{Sample-level metadata.}
+\item{obs_weights}{Observation weights for RRBS data, otherwise \code{NULL}.}
+\item{truth}{A data frame describing the generating parameters. Phase
+columns use the same signed model-shift convention as \code{mixedcirc_detect()}.
+For copied features with a nonzero lag, the harmonic entries describe the
+intended shifted signal; boundary observations are copied without a shift
+because no source observation exists beyond the sampled series.}
 }
 }
 \description{
@@ -107,9 +118,8 @@ Simulates continuous or RRBS-like circadian data with optional covariates and
 optional copied lagged relationships between selected features.
 }
 \details{
-The function is designed for testing and demonstrating `mixedcirc_detect()`,
-`mixedcirc_compare()`, and related package functionality.
-
+The function is designed for testing and demonstrating \code{mixedcirc_detect()},
+\code{mixedcirc_compare()}, and related package functionality.
 
 For continuous data, each feature is generated from a group-specific circadian
 pattern plus subject random intercepts and optional covariate effects.
@@ -117,7 +127,7 @@ pattern plus subject random intercepts and optional covariate effects.
 For RRBS-like data, each feature is generated on a latent logit scale and then
 converted to methylated/unmethylated counts using a binomial model.
 
-If `cross_lag_spec` is provided, selected target features are replaced by
+If \code{cross_lag_spec} is provided, selected target features are replaced by
 lagged copies of source features.
 }
 \examples{
